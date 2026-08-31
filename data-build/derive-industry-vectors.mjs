@@ -9,8 +9,10 @@ const SCALE_BOUNDS = { OI: [1, 7], CX: [1, 5], LV: [0, 7], IM: [1, 5] }
 // Each Lodestar facet maps to one or more O*NET elements. These are interpretations,
 // not identities — disagree with them here, in one place.
 //
-// Two corrections versus the original plan, both forced by the actual shape of the
-// O*NET 30.3 text release (verified against data-build/onet/db_30_3_text):
+// Three corrections versus the original plan:
+//
+// Two forced by the actual shape of the O*NET 30.3 text release (verified against
+// data-build/onet/db_30_3_text):
 //   1. O*NET 30.3 has no plain "Skills.txt". The Skills domain is split into
 //      "Essential Skills.txt" (2.A, basic skills) and "Transferable Skills.txt"
 //      (2.B, cross-functional skills). Element 2.B.1.a (Social Perceptiveness)
@@ -18,6 +20,16 @@ const SCALE_BOUNDS = { OI: [1, 7], CX: [1, 5], LV: [0, 7], IM: [1, 5] }
 //   2. Element 4.C.3.c ("Competition") has zero data rows in Work Context.txt — it
 //      is a category label, not a surveyed item. The leaf element actually surveyed
 //      under it is 4.C.3.c.1 ("Level of Competition"), same CX scale, same concept.
+//
+// One authorised after review, on discriminating-power grounds rather than a data gap:
+//   3. peopleFacing was originally 4.C.1.a.4 ("Contact With Others" — any contact,
+//      with anyone, including coworkers). That element compressed to a 74-97 band
+//      across all 22 industries (23-point spread) because nearly every job involves
+//      talking to *someone*. Replaced with 4.C.1.b.1.f ("Deal With External
+//      Customers or the Public in General"), which spans roughly 30-84 (54-point
+//      spread) and matches what "people-facing" actually means to a person choosing
+//      a career. Same file, same CX scale, same 1-5 bounds. See task-5-report.md for
+//      the before/after comparison and re-verification.
 const MAP = {
   // Interests: 1.B.1.a-f, scale OI
   realistic:      { scale: 'OI', els: ['1.B.1.a'], file: 'Career Interest Types.txt' },
@@ -36,7 +48,7 @@ const MAP = {
   organizational: { scale: 'CX', els: ['4.C.3.b.4'],              file: 'Work Context.txt' },
 
   // Context: Work Context, scale CX
-  peopleFacing:   { scale: 'CX', els: ['4.C.1.a.4'], file: 'Work Context.txt' },
+  peopleFacing:   { scale: 'CX', els: ['4.C.1.b.1.f'], file: 'Work Context.txt' },
   physicality:    { scale: 'CX', els: ['4.C.2.d.1.b'], file: 'Work Context.txt' },
   structurePref:  { scale: 'CX', els: ['4.C.3.b.7'], file: 'Work Context.txt' },
   pace:           { scale: 'CX', els: ['4.C.3.d.1'], file: 'Work Context.txt' },

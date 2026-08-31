@@ -31,7 +31,7 @@ const FACETS = {
   creative:       { scale: 'LV', els: ['1.A.1.b.2', '1.A.1.b.1'], file: 'Abilities.txt' },
   interpersonal:  { scale: 'LV', els: ['2.B.1.a'],                file: 'Transferable Skills.txt' },
   organizational: { scale: 'CX', els: ['4.C.3.b.4'],              file: 'Work Context.txt' },
-  peopleFacing:   { scale: 'CX', els: ['4.C.1.a.4'], file: 'Work Context.txt' },
+  peopleFacing:   { scale: 'CX', els: ['4.C.1.b.1.f'], file: 'Work Context.txt' },
   physicality:    { scale: 'CX', els: ['4.C.2.d.1.b'], file: 'Work Context.txt' },
   structurePref:  { scale: 'CX', els: ['4.C.3.b.7'], file: 'Work Context.txt' },
   pace:           { scale: 'CX', els: ['4.C.3.d.1'], file: 'Work Context.txt' },
