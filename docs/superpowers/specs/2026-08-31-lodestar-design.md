@@ -58,15 +58,19 @@ lodestar/
   tailwind.config.js
   ATTRIBUTION.md                   O*NET CC BY 4.0 notice (see section 6)
   docs/superpowers/specs/          spec + implementation plan
-  data-build/                      one-off derivation scripts, not shipped
+  data-build/                      one-off derivation, not shipped to the browser
     derive-industry-vectors.mjs
+    soc-by-industry.json           the checked-in BLS SOC-to-industry join
+    onet/                          downloaded O*NET release, gitignored
   src/
     main.jsx
     App.jsx                        stage machine: intro -> test -> results
     data/
       facets.js                    24 facet definitions, grouped by dimension
       questions.js                 72 items, each -> one facet, with direction
-      industries.js                22 industry profiles, generated then hand-tuned
+      industry-vectors.json        18 derived facets x 22 industries (generated)
+      industries.js                merges the derived vectors with authored Values,
+                                   descriptions, job titles, and first moves
     engine/
       score.js                     answers -> facet scores (0-100)
       match.js                     facet scores -> ranked industry fits
@@ -255,25 +259,69 @@ a cross-cutting note triggered by high `autonomy`, high `riskTolerance`, and hig
 
 ### 3.8 Deriving the industry vectors
 
-The 16 RIASEC and Work Values facets are **derived, not invented.** `data-build/derive-industry-vectors.mjs` runs once against the O*NET bulk database:
+**18 of the 24 facets are derived from real data, not invented.** Only the six Values
+facets are hand-authored, and the reason is a hard constraint rather than a choice.
 
-1. Map each industry to its representative SOC occupation codes via the BLS
-   Industry-Occupation Matrix. O*NET is occupation-centric and carries no native
-   SOC-to-NAICS industry mapping, so this join is external and must be recorded.
-2. For each industry, aggregate the O*NET `Interests` (six RIASEC scores) and
-   `Work Values` (six TWA dimensions) rows across its occupations, weighted by
-   employment.
-3. Rescale to 0-100 and map O*NET's six work values onto Lodestar's six:
-   Achievement→mastery, Independence→autonomy, Recognition→recognition,
-   Relationships→impact, Support→stability, Working Conditions→income.
+#### What the O*NET database actually contains
 
-The remaining 12 facets (aptitudes, context) have no O*NET equivalent and are
-hand-authored, then reviewed against the derived 12 for internal consistency.
+Verified directly against `db_30_3_text.zip` (13.2 MB) on 2026-08-31:
 
-The mapping in step 3 is an interpretation, not an identity — O*NET's "Relationships"
-covers coworker relations and service to others, which is narrower than Lodestar's
-"impact." Each mapping decision is recorded as a comment in the derivation script so a
-future reader can disagree with it specifically.
+| Facet group | Source table | Element IDs | Scale | Derivable |
+|---|---|---|---|---|
+| Interests (6) | `Career Interest Types.txt` | 1.B.1.a–f | `OI`, 1–7 | **Yes** |
+| Aptitudes (6) | `Abilities.txt`, `Skills.txt` | 1.A.\*, 2.B.\* | `LV`, 0–7 | **Yes** |
+| Context (6) | `Work Context.txt` | 4.C.\* | `CX`, 1–5 | **Yes** |
+| Values (6) | — none — | — | — | **No** |
+
+**Work Values has been removed from the O*NET Content Model.** The 1.B branch runs
+1.B.1 (Career Interest Types) directly to 1.B.3 (Specific Interest Areas); there is no
+1.B.2, no `Work Values.txt`, and no occupational reinforcer data in the release. The
+Work Importance Locator still exists as a standalone counseling instrument, but its
+per-occupation data is not published in the database. Any design that assumed otherwise
+— including this spec's first revision — is wrong.
+
+The six Values facets are therefore **hand-authored per industry and labeled as such in
+the UI.** `industries.js` carries a `derived: true|false` flag per facet group, and the
+results page marks value-driven reasoning as an editorial judgment rather than
+measured data. This is the honest handling; silently mixing authored numbers into a
+vector presented as empirical would not be.
+
+#### Derivation procedure
+
+`data-build/derive-industry-vectors.mjs` runs once, offline, and writes
+`src/data/industry-vectors.json`:
+
+1. **Join.** Map each of the 22 industries to its representative O*NET-SOC codes via
+   the BLS Industry-Occupation Matrix. O*NET is occupation-centric and carries no
+   native SOC-to-NAICS mapping, so this join is external and is recorded explicitly as
+   a checked-in table, not computed.
+2. **Aggregate.** For each industry, take the employment-weighted mean of its
+   occupations' values for each mapped element.
+3. **Filter.** In `Work Context.txt`, accept only rows where `Scale ID = 'CX'` and
+   `Category = 'n/a'` — the file also carries `CXP` percentage-by-category rows that
+   would corrupt a naive mean. Reject rows flagged `Recommend Suppress = 'Y'`.
+4. **Rescale.** Map each source scale onto 0–100 by its documented bounds: `OI` from
+   1–7, `CX` from 1–5, `LV` from 0–7. Never infer bounds from observed data.
+
+#### Element mappings
+
+Each is an interpretation, not an identity, and is recorded as a comment in the script
+so a future reader can disagree with it specifically.
+
+| Lodestar facet | O*NET element(s) |
+|---|---|
+| `analytical` | 1.A.1.b.4 Deductive Reasoning + 1.A.1.b.3 Inductive Reasoning |
+| `verbal` | 1.A.1.a.1 Oral Comprehension + 1.A.1.a.2 Written Comprehension |
+| `spatial` | 1.A.1.f.1 Spatial Orientation + 1.A.1.f.2 Visualization |
+| `creative` | 1.A.1.b.2 Originality + 1.A.1.b.1 Fluency of Ideas |
+| `interpersonal` | 2.B.1.a Social Perceptiveness |
+| `organizational` | 4.C.3.b.4 Importance of Being Exact or Accurate |
+| `peopleFacing` | 4.C.1.a.4 Contact With Others |
+| `physicality` | 4.C.2.d.1.b Spend Time Standing |
+| `structurePref` | 4.C.3.b.7 Importance of Repeating Same Tasks |
+| `pace` | 4.C.3.d.1 Time Pressure |
+| `riskTolerance` | 4.C.3.c Competition |
+| `scheduleFlex` | 4.C.3.a.4 Freedom to Make Decisions |
 
 ### 3.9 Dimension weighting — owner-authored
 
@@ -377,10 +425,14 @@ Industry vectors are derived from the **O*NET bulk database**, released under
 **CC BY 4.0**, which explicitly permits redistribution of raw and derived data with
 attribution. `ATTRIBUTION.md` and a results-page footer carry:
 
-> This product includes information from the O*NET Database by the U.S. Department of
-> Labor, Employment and Training Administration. Used under the CC BY 4.0 license.
+> This product includes information from the O*NET 30.3 Database by the U.S. Department
+> of Labor, Employment and Training Administration. Used under the CC BY 4.0 license.
 > O*NET® is a trademark of USDOL/ETA. Lodestar has modified this information; O*NET has
 > not approved, endorsed, or tested these modifications.
+
+The results page additionally distinguishes derived from authored data, per §3.8: the
+Interests, Aptitudes, and Context facets carry O*NET provenance; the Values facets are
+Lodestar's own editorial estimates and are labeled as such.
 
 The bulk database is used, **not the O*NET Web Services API** — the API operates under a
 separate, non-transferable license that does not grant redistribution rights to an app's
