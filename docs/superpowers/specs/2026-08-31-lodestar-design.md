@@ -326,22 +326,27 @@ so a future reader can disagree with it specifically.
 ### 3.9 Dimension weighting — owner-authored
 
 `src/engine/weights.js` exports the relative weight of the four dimensions. This is a
-genuine judgment call with real consequences for what the app recommends, and it belongs
-to the owner rather than the implementer.
+genuine judgment call with real consequences for what the app recommends, and it is the
+**designated override point** — the one knob the owner is expected to revisit.
 
-The file is scaffolded with the signature, the constraint (weights sum to 1), and the
-trade-offs as comments; the body is left for the owner to author. Roughly six lines.
+It **ships with recommended defaults** rather than blocking the build, so the app is
+runnable from the first commit:
 
-The trade-off, for the record: equal weighting is defensible and safe. **Weighting
-Values above Interests is the position worth considering** — people rarely leave jobs
-because the subject matter stopped being interesting; they leave because the autonomy,
-stability, or income did not match what they needed. **Weighting Aptitudes highly is the
-position to avoid**, because those scores are self-reported, and a person with no career
-direction is precisely the person least able to rate their own aptitudes against a
-professional baseline.
+```
+values 0.35 · interests 0.30 · context 0.20 · aptitudes 0.15
+```
 
-Until it is authored the engine will not run. This is intentional. The tests assert the
-constraint, never a particular choice.
+The reasoning, for the record. Equal weighting is defensible and safe. **Values above
+Interests is the position worth taking** — people rarely leave jobs because the subject
+matter stopped being interesting; they leave because the autonomy, stability, or income
+did not match what they needed. **Aptitudes is deliberately lowest**, because those
+scores are self-reported, and a person with no career direction is precisely the person
+least able to rate their own aptitudes against a professional baseline.
+
+The full reasoning is repeated as a comment block in the file itself, so anyone changing
+the numbers sees the argument they are overriding. Tests assert only the constraint
+(keys correct, sum 1.0 within `1e-9`), never a particular choice — changing the weights
+must never turn the suite red.
 
 ---
 
