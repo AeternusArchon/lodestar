@@ -16,6 +16,19 @@ describe('facets', () => {
     for (const f of FACETS) expect(DIMENSIONS).toContain(f.dimension)
   })
 
+  // Spelled out as a literal on purpose. Eleven later tasks import these exact
+  // key strings, and Task 10's star plot consumes FACETS positionally, so a typo
+  // or a reorder must fail here rather than silently downstream. Deriving this
+  // list from FACETS would make the assertion tautological and guard nothing.
+  it('keeps the exact 24 keys in the fixed dimension order', () => {
+    expect(FACETS.map(f => f.key)).toEqual([
+      'realistic', 'investigative', 'artistic', 'social', 'enterprising', 'conventional',
+      'autonomy', 'impact', 'income', 'stability', 'mastery', 'recognition',
+      'analytical', 'verbal', 'spatial', 'interpersonal', 'organizational', 'creative',
+      'peopleFacing', 'structurePref', 'pace', 'physicality', 'riskTolerance', 'scheduleFlex',
+    ])
+  })
+
   it('gives every facet a human label and a blurb', () => {
     for (const f of FACETS) {
       expect(f.label.length).toBeGreaterThan(0)
