@@ -124,7 +124,7 @@ export const QUESTIONS = [
 
   // autonomy — deciding how the work gets done
   { id: 'AUT-01', facet: 'autonomy', dir: 1,
-    text: 'I would take less money for the freedom to decide how I spend my day.' },
+    text: 'I would take less money for the freedom to decide how the work gets done.' },
   { id: 'AUT-02', facet: 'autonomy', dir: 1,
     text: 'Having to clear my approach with someone first takes more out of me than the work does.' },
   { id: 'AUT-03', facet: 'autonomy', dir: -1,
