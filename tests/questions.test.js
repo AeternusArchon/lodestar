@@ -48,4 +48,13 @@ describe('question bank', () => {
       expect(q.text.length).toBeGreaterThan(20)
     }
   })
+
+  it('never places two items from the same facet side by side', () => {
+    for (let i = 1; i < QUESTIONS.length; i++) {
+      expect(
+        QUESTIONS[i].facet,
+        `${QUESTIONS[i - 1].id} and ${QUESTIONS[i].id} are adjacent and share a facet`,
+      ).not.toBe(QUESTIONS[i - 1].facet)
+    }
+  })
 })
