@@ -7,6 +7,18 @@ const DIMENSION_COLOR = {
   context: 'var(--haze)',
 }
 
+// Facets per dimension, derived rather than hardcoded so the boundary and label
+// maths stay correct if FACETS or DIMENSIONS ever change size.
+const PER_DIMENSION = FACETS.length / DIMENSIONS.length
+
+// Angle (in pointsFor's coordinate space) of the seam between two consecutive
+// dimension arcs, i.e. halfway between the last ray of one dimension and the
+// first ray of the next. There are as many seams as dimensions.
+function boundaryAngle(dimensionIndex) {
+  const seamIndex = dimensionIndex * PER_DIMENSION - 0.5
+  return (seamIndex / FACETS.length) * Math.PI * 2 - Math.PI / 2
+}
+
 /**
  * 24 rays from a shared centre, ordered by dimension so each dimension owns a
  * quarter-turn arc. Radius encodes the facet score; unanswered facets sit at the
@@ -34,7 +46,11 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
       <title>Your profile across 24 facets</title>
       <desc id="constellation-desc">
         A 24-point star plot. Each ray is one facet; the further the point from the
-        centre, the higher that facet scored. The full numeric readout follows below.
+        centre, the higher that facet scored. The 24 rays are grouped into four
+        contiguous arcs of six rays each, running clockwise from the top in this
+        order: interests, values, aptitudes, context. A short tick mark at the rim
+        marks where one arc ends and the next begins. The full numeric readout
+        follows below.
       </desc>
 
       {[0.25, 0.5, 0.75, 1].map(r => (
@@ -48,6 +64,25 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
               stroke="var(--haze)" strokeOpacity="0.12" />
       ))}
 
+      {/*
+        Always-rendered, non-colour cue marking where one dimension's arc ends
+        and the next begins. Colour differentiates the four dimensions too
+        (DIMENSION_COLOR below), but it must not be the *only* cue — this runs
+        regardless of `labelled`, unlike the text labels, because Task 11 renders
+        this component unlabelled in the instrument rail, which is exactly the
+        state a viewer looks at for the whole twelve minutes.
+      */}
+      {DIMENSIONS.map((d, i) => {
+        const a = boundaryAngle(i)
+        const rInner = half * 0.86
+        return (
+          <line key={`boundary-${d}`} data-role="dimension-boundary"
+                x1={half + Math.cos(a) * rInner} y1={half + Math.sin(a) * rInner}
+                x2={half + Math.cos(a) * half} y2={half + Math.sin(a) * half}
+                stroke="var(--haze)" strokeOpacity="0.5" strokeWidth="1.5" />
+        )
+      })}
+
       <polygon points={path} fill="var(--brass)" fillOpacity="0.14"
                stroke="var(--brass)" strokeWidth="1.5"
                style={{ transition: 'all 400ms ease-out' }} />
@@ -58,11 +93,11 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
       ))}
 
       {labelled && DIMENSIONS.map((d, i) => {
-        const a = ((i * 6 + 2.5) / 24) * Math.PI * 2 - Math.PI / 2
+        const a = ((i * PER_DIMENSION + (PER_DIMENSION - 1) / 2) / FACETS.length) * Math.PI * 2 - Math.PI / 2
         return (
           <text key={d} x={half + Math.cos(a) * (half * 0.86)} y={half + Math.sin(a) * (half * 0.86)}
                 textAnchor="middle" className="font-mono uppercase"
-                fontSize="9" letterSpacing="1.6" fill="var(--haze)">{d}</text>
+                fontSize={size * 0.03} letterSpacing={size * 0.005} fill="var(--haze)">{d}</text>
         )
       })}
     </svg>
