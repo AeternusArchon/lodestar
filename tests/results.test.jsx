@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react'
 import Results from '../src/components/Results.jsx'
 import { QUESTIONS } from '../src/data/questions.js'
 import { FACETS } from '../src/data/facets.js'
+import { INDUSTRIES } from '../src/data/industries.js'
+import { scoreAnswers } from '../src/engine/score.js'
+import { matchIndustries } from '../src/engine/match.js'
+import { summarise } from '../src/engine/profile.js'
 
 const varied = Object.fromEntries(QUESTIONS.map((q, i) => [q.id, (i % 5) + 1]))
 const uniform = Object.fromEntries(QUESTIONS.map(q => [q.id, 3]))
@@ -54,6 +58,46 @@ describe('<Results>', () => {
     render(<Results answers={varied} onRestart={() => {}} />)
     expect(document.body.textContent).toMatch(/O\*NET 30\.3 Database/)
     expect(document.body.textContent).toMatch(/CC BY 4\.0/)
+  })
+})
+
+// Important 4: groupNearTies anchors on the group head's fit and summarise
+// added whole groups with no truncation, so the "shortlist" reached 14 of 22.
+// The cap lives in profile.js (see tests/profile.test.js); this covers what the
+// reader actually sees.
+describe('the shortlist cap on screen', () => {
+  // A real, scoreable answer set — found by scanning 3,000 synthetic
+  // respondents — whose near-tie grouping selects seventeen industries. Under
+  // the old behaviour that was seventeen full cards, each with four reasons,
+  // three titles and a first move.
+  let s = 1521
+  const overflowing = Object.fromEntries(QUESTIONS.map(q => {
+    s = (s * 1103515245 + 12345) % 2147483648
+    return [q.id, (s % 5) + 1]
+  }))
+
+  it('renders at most seven cards however wide the tie group runs', () => {
+    render(<Results answers={overflowing} onRestart={() => {}} />)
+    expect(screen.getAllByRole('article')).toHaveLength(7)
+  })
+
+  it('names the industries it did not card rather than dropping them', () => {
+    render(<Results answers={overflowing} onRestart={() => {}} />)
+    const text = document.body.textContent
+    expect(text).toMatch(/also within a point of these/i)
+
+    const profile = scoreAnswers(overflowing)
+    const summary = summarise(profile, matchIndustries(profile))
+    expect(summary.alsoTied.length).toBeGreaterThan(0)
+    for (const entry of summary.alsoTied) {
+      const name = INDUSTRIES.find(i => i.key === entry.key).name
+      expect(text, name).toContain(name)
+    }
+  })
+
+  it('shows no such line when nothing overflowed', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    expect(document.body.textContent).not.toMatch(/also within a point of these/i)
   })
 })
 

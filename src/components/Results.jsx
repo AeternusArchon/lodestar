@@ -188,6 +188,24 @@ export default function Results({ answers, onRestart }) {
                 tied={card.tied}
               />
             ))}
+
+            {/*
+              Named, not dropped. profile.js caps full cards at seven; anything
+              past that is the tail of a tie group whose other members are
+              carded above. Truncating a tie group silently would contradict
+              §3.6's near-tie honesty rule, so the remainder is said out loud
+              here instead of being given cards nobody asked for.
+            */}
+            {summary.alsoTied.length > 0 && (
+              <p className="font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
+                Also within a point of these:{' '}
+                {joinList(summary.alsoTied.map(entry => INDUSTRY_BY_KEY[entry.key].name))}.
+                They tied with the cards at the bottom of this list, so the
+                order between them means nothing — we stopped at seven rather
+                than hand you fourteen. If one of them is the field you were
+                already curious about, count it as on the list.
+              </p>
+            )}
           </div>
         )}
 
