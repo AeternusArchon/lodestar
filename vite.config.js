@@ -5,5 +5,11 @@ export default defineConfig({
   plugins: [react()],
   // Must cover .jsx — Tasks 10, 11, and 12 add JSX test files, and a .js-only
   // glob would let `npm test` pass green while never running them.
-  test: { environment: 'jsdom', include: ['tests/**/*.test.{js,jsx}'] },
+  //
+  // globals: true exposes `afterEach` as a global, which is what
+  // @testing-library/react's automatic post-test cleanup checks for (see its
+  // dist/index.js). Without it, nothing unmounts the previous test's render
+  // between tests in the same file, and later assertions see every prior
+  // render's markup still in the document.
+  test: { environment: 'jsdom', include: ['tests/**/*.test.{js,jsx}'], globals: true },
 })
