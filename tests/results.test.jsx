@@ -43,3 +43,30 @@ describe('<Results>', () => {
     expect(document.body.textContent).toMatch(/CC BY 4\.0/)
   })
 })
+
+// Fix round 1, Finding 1 (Critical): the weighted cosine in match.js centers
+// each dimension on its own mean, so a facet where BOTH the respondent and
+// the industry sit below their dimension's mean multiplies two negatives
+// into a positive contribution — a real, positive signal ("neither of us
+// cares about this"). Every facets.js blurb was written for the HIGH pole
+// only, so that genuine low-low match rendered a sentence asserting the
+// opposite of what the respondent actually answered.
+//
+// `varied` is known (verified by direct inspection of matchIndustries +
+// explainMatch against it) to put 'autonomy' — score ~8 of 100, well under
+// the low/high threshold — among the top match's three positive reasons.
+// That is the exact shape of the bug: a low score driving a *positive*
+// reason, which is precisely when the old code rendered the HIGH blurb over
+// a low score.
+describe('facet blurb polarity (fix round 1, Finding 1)', () => {
+  const autonomy = FACETS.find(f => f.key === 'autonomy')
+
+  it('renders the low-pole blurb, never the high-pole one, for a low score that drives a reason', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    // The whole page, not just one card: ProfileReadout renders the same
+    // facet's blurb too, and both must agree with the respondent's actual
+    // score, not with each other's history of being wrong the same way.
+    expect(document.body.textContent).not.toContain(autonomy.blurb)
+    expect(document.body.textContent).toContain(autonomy.blurbLow)
+  })
+})

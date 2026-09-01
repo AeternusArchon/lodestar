@@ -35,6 +35,20 @@ describe('facets', () => {
       expect(f.blurb.length).toBeGreaterThan(10)
     }
   })
+
+  // A high-only blurb is what let a shared-lowness match render a sentence
+  // that asserted the opposite of what the respondent answered (fix round 1
+  // finding). Every facet needs real copy for the low pole too, held to the
+  // same length bar as the high one, and it must not just be the high
+  // sentence with a couple of words swapped in front of it — see the
+  // dedicated regression test in results.test.jsx for the rendering half of
+  // this guarantee.
+  it('gives every facet a low-pole blurb, distinct from its high one', () => {
+    for (const f of FACETS) {
+      expect(f.blurbLow.length).toBeGreaterThan(10)
+      expect(f.blurbLow).not.toBe(f.blurb)
+    }
+  })
 })
 
 describe('weights', () => {

@@ -36,7 +36,14 @@ function FacetRow({ facet, score }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="font-body text-sm leading-snug text-haze">{facet.blurb}</p>
+      {/*
+        Fix round 1, Finding 1: the blurb is a claim about the person, and
+        every facets.js blurb is written for the HIGH pole only — rendering
+        it unconditionally told a low scorer the opposite of what they
+        answered. Select the pole from this person's own score, same
+        threshold the bar colour already uses, so the two never disagree.
+      */}
+      <p className="font-body text-sm leading-snug text-haze">{high ? facet.blurb : facet.blurbLow}</p>
     </div>
   )
 }

@@ -17,13 +17,33 @@ function drivingItems(facetKey, answers) {
     .map(({ id, text, response }) => ({ id, text, response }))
 }
 
+/**
+ * Fix round 1, Finding 1 (Critical): the weighted cosine in match.js centers
+ * each dimension on its own mean, so a facet where BOTH the respondent and
+ * the industry sit below their dimension's mean multiplies two negatives
+ * into a positive contribution — "neither of us cares about this" is real
+ * signal, not noise. But every facets.js blurb was written for the HIGH pole
+ * only, so that genuine low-low match rendered a sentence asserting the
+ * opposite of what the respondent actually answered (a 0-of-100 "Risk
+ * tolerance" reason quoting the respondent's own risk-averse answers,
+ * directly under a sentence telling them they like to gamble). The blurb is
+ * always a claim about the PERSON, not the industry, so it must be chosen
+ * from the respondent's own score — never the industry's, and never the
+ * sign of the contribution itself, which conflates two different questions
+ * (which pole is this person? vs. did this facet help or hurt the fit?).
+ */
+function blurbFor(facet, score) {
+  return score >= 50 ? facet.blurb : facet.blurbLow
+}
+
 function toReason(facetKey, contribution, profile, industry, answers) {
   const facet = facetOf[facetKey]
+  const score = profile[facetKey]
   return {
     facet: facetKey,
     label: facet.label,
-    blurb: facet.blurb,
-    score: profile[facetKey],
+    blurb: blurbFor(facet, score),
+    score,
     target: industry.vector[facetKey],
     contribution,
     items: drivingItems(facetKey, answers),
