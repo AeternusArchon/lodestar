@@ -72,7 +72,7 @@ export default function IndustryCard({ match, reasons, rank, tied }) {
           {tied ? `Tied for ${ordinal(rank)}` : ordinal(rank)}
         </p>
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h3 className="font-display text-2xl sm:text-3xl text-bone">{match.name}</h3>
+          <h2 className="font-display text-2xl sm:text-3xl text-bone">{match.name}</h2>
           <p className="font-mono text-3xl text-brass">
             {round(match.fit)}<span className="text-base align-top">%</span>
           </p>
@@ -81,7 +81,7 @@ export default function IndustryCard({ match, reasons, rank, tied }) {
       </header>
 
       <div className="flex flex-col gap-5">
-        <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">Why this fits</h4>
+        <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">Why this fits</h3>
         {reasons.positives.map(reason => (
           <ReasonBlock key={reason.facet} reason={reason} tone="positive" />
         ))}
@@ -89,7 +89,7 @@ export default function IndustryCard({ match, reasons, rank, tied }) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">Titles you'd see</h4>
+        <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">Titles you'd see</h3>
         <ul className="flex flex-col gap-1">
           {match.titles.map(t => (
             <li key={t.title} className="font-body text-base text-bone">
@@ -100,7 +100,7 @@ export default function IndustryCard({ match, reasons, rank, tied }) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">A first move</h4>
+        <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">A first move</h3>
         <p className="font-body text-base leading-relaxed text-bone">{match.firstMove}</p>
       </div>
     </article>

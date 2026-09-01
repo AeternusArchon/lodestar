@@ -54,6 +54,21 @@ describe('<Results>', () => {
     expect(screen.queryAllByRole('article')).toHaveLength(0)
   })
 
+  // The screen had no h1 and ran H3 (industry name) … H4 (card sections) … H2
+  // (full profile), so there was nothing to land on at the top and the outline
+  // skipped a level on the way back up.
+  it('has exactly one h1 and a heading outline that never skips a level', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+
+    const levels = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')]
+      .map(h => Number(h.tagName[1]))
+    expect(levels[0]).toBe(1)
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i] - levels[i - 1], `${levels[i - 1]} -> ${levels[i]}`).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('carries the O*NET attribution', () => {
     render(<Results answers={varied} onRestart={() => {}} />)
     expect(document.body.textContent).toMatch(/O\*NET 30\.3 Database/)

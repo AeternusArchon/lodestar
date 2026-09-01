@@ -321,7 +321,7 @@ const META = {
     firstMove: 'List five things you own on a marketplace this week, price them slightly high, and negotiate every offer instead of taking the first one. The signal is twofold: whether the haggling was fun, and whether the ghosted chats and lowballs rolled off you — because a thick skin you do not have to fake is the entry fee.',
   },
   'hospitality-travel-food': {
-    name: 'Hospitality, Travel & Food',
+    name: 'Hospitality, Travel & Food Service',
     blurb: 'Feeding, housing, and hosting people — restaurants, hotels, events — where the product is how the guest felt.',
     titles: [
       { title: 'Line Cook', level: 'entry' },

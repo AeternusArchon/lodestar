@@ -131,7 +131,16 @@ export default function Results({ answers, onRestart }) {
       </div>
 
       <div className="w-full flex flex-col items-center gap-14 px-4 sm:px-6 pt-8 pb-10">
+        {/*
+          The results screen had no h1 at all, and its outline ran H3 (industry
+          name) … H4 (card sections) … H2 (full profile) — non-monotonic, and
+          with nothing at the top for a screen-reader user to land on. This is
+          the page's one h1; IndustryCard's headings were demoted a level to
+          sit under it, which leaves ProfileReadout's existing h2/h3 correct
+          as they stand.
+        */}
         <div className="w-full max-w-2xl flex flex-col gap-4 font-body text-lg leading-relaxed">
+          <h1 className="font-display text-3xl sm:text-4xl text-bone">Your results</h1>
           <p>
             This is a self-report snapshot, not a verdict on who you are. What
             follows is a shortlist to investigate, built from how you answered —

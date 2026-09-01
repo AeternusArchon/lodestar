@@ -36,6 +36,20 @@ describe('facets', () => {
     }
   })
 
+  // The key is load-bearing across the engine, the data and the derivation
+  // script and must not move. The LABEL was over-promising: this facet maps to
+  // O*NET "Spend Time Standing" and to PHY-01's chair-versus-feet wording, but
+  // "Physicality" reads as lifting and exertion, which made hospitality nearly
+  // tying construction look wrong at a glance.
+  it('labels the standing facet by what it measures, keeping the key intact', () => {
+    const facet = FACETS.find(f => f.key === 'physicality')
+    expect(facet).toBeDefined()
+    expect(facet.label).toBe('On your feet')
+    for (const copy of [facet.blurb, facet.blurbLow]) {
+      expect(copy).not.toMatch(/lift|strength|heavy|carry/i)
+    }
+  })
+
   // A high-only blurb is what let a shared-lowness match render a sentence
   // that asserted the opposite of what the respondent answered (fix round 1
   // finding). Every facet needs real copy for the low pole too, held to the

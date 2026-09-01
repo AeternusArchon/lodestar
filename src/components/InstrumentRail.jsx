@@ -28,22 +28,22 @@ function partialProfile(answers) {
 }
 
 /**
- * `index`/`total` are optional: during the test App passes both so the rail
- * can show progress, but Task 12's results view can reuse this component with
- * only `answers` (a completed set) to show the finished figure without a
- * meaningless position readout.
+ * The mid-test rail: the item counter and the live constellation.
+ *
+ * `index`/`total` were once optional, guarded by a `showProgress` check, on
+ * the expectation that the results view would reuse this component with only
+ * `answers`. It did not — Results renders <Constellation> directly at a much
+ * larger size — so no caller has ever omitted them and the guarded branch was
+ * dead. App is the only caller and always passes all three.
  */
 export default function InstrumentRail({ answers, index, total }) {
   const { profile, answeredFacets } = partialProfile(answers)
-  const showProgress = typeof index === 'number' && typeof total === 'number'
 
   return (
     <aside aria-label="Your emerging profile" className="w-full flex flex-col items-center gap-2">
-      {showProgress && (
-        <p aria-live="polite" className="font-mono text-xs uppercase tracking-[0.25em] text-haze">
-          {index + 1} / {total}
-        </p>
-      )}
+      <p aria-live="polite" className="font-mono text-xs uppercase tracking-[0.25em] text-haze">
+        {index + 1} / {total}
+      </p>
       <div className="w-[180px] h-[180px]">
         <Constellation profile={profile} answeredFacets={answeredFacets} size={180} />
       </div>

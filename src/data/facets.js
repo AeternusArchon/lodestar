@@ -97,9 +97,17 @@ export const FACETS = [
   { key: 'pace', dimension: 'context', label: 'Pace',
     blurb: 'You do your best work with the clock running, and a slow, even week is harder on you than a fast one.',
     blurbLow: 'A slow, even week suits you better than a fast one, and work against the clock wears on you rather than sharpening you.' },
-  { key: 'physicality', dimension: 'context', label: 'Physicality',
-    blurb: 'You want to be on your feet and moving rather than sitting at a desk for eight hours.',
-    blurbLow: 'Sitting at a desk for most of the day is no burden to you; being on your feet and moving all day is not what you are after.' },
+  // Label is "On your feet", not "Physicality". The KEY stays `physicality` —
+  // it is load-bearing across the engine, the data, and the derivation script
+  // — but the label was over-promising. This facet maps to O*NET 4.C.2.d.1.b
+  // ("Spend Time Standing") and to PHY-01's own wording, which is about eight
+  // hours in a chair versus eight hours upright. "Physicality" reads as
+  // lifting and exertion, which is why hospitality nearly tying construction
+  // looked wrong at a glance when it was in fact measuring exactly what it
+  // claimed. The blurbs say standing and moving, never strength.
+  { key: 'physicality', dimension: 'context', label: 'On your feet',
+    blurb: 'You want to spend the day upright and moving between places rather than sitting at a desk for eight hours.',
+    blurbLow: 'Sitting at a desk for most of the day is no burden to you; being on your feet from morning to evening is not what you are after.' },
   { key: 'riskTolerance', dimension: 'context', label: 'Risk tolerance',
     blurb: 'You will bet on an uncertain outcome — commission, competition, something newly started — over a smaller sure thing.',
     blurbLow: 'A guaranteed smaller outcome beats a bigger uncertain one for you, and commission-driven or newly-started ventures do not appeal to you.' },

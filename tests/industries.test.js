@@ -79,6 +79,12 @@ describe('industries', () => {
     }
   })
 
+  // Spec §3.7's table row 20 reads "Hospitality, Travel & Food Service".
+  it('names industries as the spec names them', () => {
+    expect(INDUSTRIES.find(i => i.key === 'hospitality-travel-food').name)
+      .toBe('Hospitality, Travel & Food Service')
+  })
+
   it('does not produce 22 identical vectors', () => {
     const signatures = new Set(INDUSTRIES.map(i => JSON.stringify(i.vector)))
     expect(signatures.size).toBe(22)
