@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Intro from './components/Intro.jsx'
 import Question from './components/Question.jsx'
 import InstrumentRail from './components/InstrumentRail.jsx'
+import Results from './components/Results.jsx'
 import { QUESTIONS } from './data/questions.js'
 
 const STORAGE_KEY = 'lodestar.v1.session'
@@ -89,7 +90,7 @@ export default function App() {
 
   function goTo(nextIndex) {
     const clamped = Math.max(0, Math.min(QUESTIONS.length - 1, nextIndex))
-    setSession(s => ({ ...s, index: clamped }))
+    setSession(s => ({ ...s, index: clamped, notice: null }))
   }
 
   // Records an answer without moving anywhere. This is what a mouse click or
@@ -99,15 +100,36 @@ export default function App() {
   // reviewable step rather than something that already happened the instant
   // an option was picked.
   function recordAnswer(id, value) {
-    setSession(s => ({ ...s, answers: { ...s.answers, [id]: value } }))
+    setSession(s => ({ ...s, answers: { ...s.answers, [id]: value }, notice: null }))
+  }
+
+  // Gate for the 'test' -> 'results' transition. scoreAnswers() (Task 8)
+  // throws on an incomplete answer map, and goTo lets a keyboard user land on
+  // the last item having arrow-keyed straight past every question before it
+  // without answering any of them — one digit press there would otherwise
+  // reach 'results' with 71 items still unanswered and crash on the throw.
+  // So the transition to 'results' is gated here, independent of how the
+  // user reached the final index, on ALL 72 items being answered — not just
+  // "index is at the end". When it isn't, the user is dropped on the first
+  // unanswered item with a count so there's something to act on rather than
+  // a dead end.
+  function finishOrRedirect(s, answers) {
+    const missingIndex = QUESTIONS.findIndex(q => answers[q.id] === undefined)
+    if (missingIndex === -1) return { ...s, answers, stage: 'results', notice: null }
+
+    const missingCount = QUESTIONS.length - QUESTIONS.filter(q => answers[q.id] !== undefined).length
+    const notice = missingCount === 1
+      ? "1 statement still needs an answer. Here it is."
+      : `${missingCount} statements still need an answer. Here's the first one.`
+    return { ...s, answers, index: missingIndex, notice }
   }
 
   // Advances (or, on the last item, finishes) without changing the answer.
   // Used by the Next button, once an answer already exists for this item.
   function advance() {
     setSession(s => {
-      if (s.index >= QUESTIONS.length - 1) return { ...s, stage: 'results' }
-      return { ...s, index: s.index + 1 }
+      if (s.index < QUESTIONS.length - 1) return { ...s, index: s.index + 1, notice: null }
+      return finishOrRedirect(s, s.answers)
     })
   }
 
@@ -118,11 +140,13 @@ export default function App() {
   function answerAndAdvance(id, value) {
     setSession(s => {
       const nextAnswers = { ...s.answers, [id]: value }
-      if (s.index >= QUESTIONS.length - 1) {
-        return { ...s, answers: nextAnswers, stage: 'results' }
-      }
-      return { ...s, answers: nextAnswers, index: s.index + 1 }
+      if (s.index < QUESTIONS.length - 1) return { ...s, answers: nextAnswers, index: s.index + 1, notice: null }
+      return finishOrRedirect(s, nextAnswers)
     })
+  }
+
+  function restart() {
+    setSession({ ...FRESH_SESSION, answers: {} })
   }
 
   if (stage === 'intro') {
@@ -130,12 +154,7 @@ export default function App() {
   }
 
   if (stage === 'results') {
-    // Task 12 replaces this with the full results view.
-    return (
-      <main className="min-h-screen grid place-items-center bg-ink text-bone font-display text-center px-6">
-        <p>That's the last one. Results are on their way.</p>
-      </main>
-    )
+    return <Results answers={answers} onRestart={restart} />
   }
 
   const item = QUESTIONS[index]
@@ -147,6 +166,11 @@ export default function App() {
     <main className="min-h-screen flex flex-col bg-ink text-bone px-4 sm:px-6 py-6 gap-6">
       <InstrumentRail answers={answers} index={index} total={QUESTIONS.length} />
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
+        {session.notice && (
+          <p role="status" className="w-full max-w-2xl font-mono text-sm text-rust text-center">
+            {session.notice}
+          </p>
+        )}
         <Question
           item={item}
           value={answers[item.id]}
