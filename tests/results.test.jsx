@@ -57,6 +57,40 @@ describe('<Results>', () => {
   })
 })
 
+// Spec §3.7 removes entrepreneurship from the 22 on the condition that it is
+// surfaced as a cross-cutting note instead, triggered by high autonomy, high
+// riskTolerance and high enterprising. Nothing implemented it until now.
+describe('the self-employment cross-cutting note (spec §3.7)', () => {
+  // Push all three trigger facets to the top of their scales, honouring each
+  // item's own dir, and leave everything else mid-scale so the profile is not
+  // wholly flat and a real shortlist still gets built.
+  const entrepreneurial = { ...varied }
+  for (const q of QUESTIONS) {
+    if (!['autonomy', 'riskTolerance', 'enterprising'].includes(q.facet)) continue
+    entrepreneurial[q.id] = q.dir === 1 ? 5 : 1
+  }
+
+  it('surfaces the note when all three facets score high', () => {
+    render(<Results answers={entrepreneurial} onRestart={() => {}} />)
+    expect(screen.getByRole('region', { name: /working for yourself/i })).toBeDefined()
+    expect(document.body.textContent).toMatch(/self-employed path fits your profile|in\s+any of these, that path fits your profile/i)
+    // It must read as a mode of working, not a twenty-third recommendation.
+    expect(document.body.textContent).toMatch(/isn't a twenty-third industry/i)
+    expect(screen.queryAllByRole('article').length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('stays silent when the three facets are not all high', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    expect(screen.queryByRole('region', { name: /working for yourself/i })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/self-employed|working for yourself/i)
+  })
+
+  it('stays silent on a wholly flat profile, where there is no list to cut across', () => {
+    render(<Results answers={uniform} onRestart={() => {}} />)
+    expect(screen.queryByRole('region', { name: /working for yourself/i })).toBeNull()
+  })
+})
+
 // Fix round 1, Finding 1 (Critical): the weighted cosine in match.js centers
 // each dimension on its own mean, so a facet where BOTH the respondent and
 // the industry sit below their dimension's mean multiplies two negatives

@@ -21,6 +21,27 @@ function isComplete(answers) {
   return QUESTIONS.every(q => answers[q.id] !== undefined)
 }
 
+/**
+ * Spec §3.7 removes entrepreneurship from the 22 on the explicit condition
+ * that it is surfaced another way: "a cross-cutting note triggered by high
+ * `autonomy`, high `riskTolerance`, and high `enterprising` scores".
+ *
+ * Threshold: all three at 70 or above, on the 0-100 facet scale. "High" has to
+ * mean more than the 50 used elsewhere to pick which pole of a blurb to
+ * render — 50 is the midpoint of the scale, not a strong reading, and firing
+ * this on three coin-flips would make the note meaningless. 70 is a person who
+ * answered around 4 of 5 on every item in all three facets. All three are
+ * required, not any: wanting to run your own thing without the appetite for
+ * an uncertain income, or the appetite without wanting to sell, is a different
+ * profile and a worse piece of advice.
+ */
+const SELF_EMPLOYED_THRESHOLD = 70
+const SELF_EMPLOYED_FACETS = ['autonomy', 'riskTolerance', 'enterprising']
+
+function fitsSelfEmployment(profile) {
+  return SELF_EMPLOYED_FACETS.every(key => profile[key] >= SELF_EMPLOYED_THRESHOLD)
+}
+
 /** The group (and therefore rank/tie state) a shortlisted entry belongs to. */
 function groupFor(groups, key) {
   return groups.find(g => g.members.some(m => m.key === key))
@@ -168,6 +189,39 @@ export default function Results({ answers, onRestart }) {
               />
             ))}
           </div>
+        )}
+
+        {/*
+          Spec §3.7's cross-cutting note. Deliberately placed after the cards
+          and outside them: it is an observation about a MODE of working
+          available inside any of the shortlisted industries, not a
+          twenty-third recommendation competing with them. Suppressed on a
+          wholly flat profile, where no shortlist was produced and "in any of
+          these" would have nothing to refer to.
+        */}
+        {!summary.whollyFlat && fitsSelfEmployment(profile) && (
+          <section
+            aria-label="Working for yourself"
+            className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-brass/50 pl-4"
+          >
+            <h2 className="font-display text-xl text-bone">Working for yourself</h2>
+            <p className="font-body text-base leading-relaxed text-bone">
+              Something cuts across the whole list above. You scored{' '}
+              {Math.round(profile.autonomy)} on autonomy,{' '}
+              {Math.round(profile.riskTolerance)} on risk tolerance, and{' '}
+              {Math.round(profile.enterprising)} on enterprising — all three
+              high, which is the combination that tends to point at running
+              your own thing.
+            </p>
+            <p className="font-body text-base leading-relaxed text-haze">
+              This isn't a twenty-third industry to weigh against the others.
+              Every field above has a self-employed version — contract,
+              freelance, private practice, your own small operation — and in
+              any of these, that path fits your profile. Pick the field on the
+              evidence above, then decide separately whether you want to do it
+              on someone's payroll or on your own account.
+            </p>
+          </section>
         )}
 
         <ProfileReadout profile={profile} />
