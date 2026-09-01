@@ -49,10 +49,14 @@ export default function App() {
     function handleKey(e) {
       if (e.key.length === 1 && e.key >= '1' && e.key <= '5') {
         answerAndAdvance(QUESTIONS[index].id, Number(e.key))
-      } else if (e.key === 'ArrowLeft') {
-        goTo(index - 1)
-      } else if (e.key === 'ArrowRight') {
-        goTo(index + 1)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // preventDefault matters here: when focus sits on one of Question's
+        // radios, the browser's own default action for these keys moves the
+        // checked selection to the adjacent option in the group. Without
+        // this, a right-arrow meant to advance to the next item would also
+        // silently overwrite the current answer.
+        e.preventDefault()
+        goTo(index + (e.key === 'ArrowRight' ? 1 : -1))
       }
     }
 
