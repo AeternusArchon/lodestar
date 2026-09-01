@@ -89,79 +89,96 @@ export default function Results({ answers, onRestart }) {
   })
 
   return (
-    <main className="min-h-screen bg-ink text-bone px-4 sm:px-6 py-10 flex flex-col items-center gap-14">
-      <div className="w-full max-w-md aspect-square">
-        <Constellation profile={profile} answeredFacets={ALL_FACETS} size={360} labelled />
+    <main className="min-h-screen bg-ink text-bone flex flex-col items-center pt-6 sm:pt-8">
+      {/*
+        Fix round 1, Finding 2: full-bleed means edge-to-edge — no page
+        gutter, no width cap — the one place in the app this diagram is
+        meant to read as a large signature element rather than the small,
+        boxed 180x180 instrument-rail version. The HEIGHT is capped instead
+        of the width: on a wide viewport that keeps this a full-width strip
+        rather than an enormous square that would bury the honest-scope note
+        off-screen below it; on a narrow viewport the width is the binding
+        constraint instead, so it still renders as a true edge-to-edge
+        square there. Either way it is dramatically larger than the old
+        448px-capped, centered version this replaces. The top padding lives
+        on <main>, not on this box, so it doesn't throw off the aspect-ratio
+        math — padding inside an aspect-square element adds to its rendered
+        height rather than being absorbed by it.
+      */}
+      <div className="w-full aspect-square max-h-[520px]">
+        <Constellation profile={profile} answeredFacets={ALL_FACETS} size={520} labelled />
       </div>
 
-      <div className="w-full max-w-2xl flex flex-col gap-4 font-body text-lg leading-relaxed">
-        <p>
-          This is a self-report snapshot, not a verdict on who you are. What
-          follows is a shortlist to investigate, built from how you answered —
-          not a measurement of what you're capable of.
-        </p>
-        <p className="font-mono text-sm text-haze leading-relaxed">
-          One note on the numbers: the Values facets (autonomy, impact,
-          income, stability, mastery, recognition) aren't measured data for
-          any industry below — O*NET, the government dataset this runs on,
-          dropped Work Values entirely. Those six figures per industry are
-          Lodestar's own editorial estimate — our judgment, plainly labelled,
-          not data dressed up as fact. Anywhere that estimate drives a
-          reason, it says so.
-        </p>
-      </div>
-
-      {!summary.whollyFlat && summary.flat.length > 0 && (
-        <div className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
+      <div className="w-full flex flex-col items-center gap-14 px-4 sm:px-6 pt-8 pb-10">
+        <div className="w-full max-w-2xl flex flex-col gap-4 font-body text-lg leading-relaxed">
           <p>
-            Your answers ran too even across {joinList(summary.flat)} to
-            say much there — those facets sat too close together to tell
-            what you actually favor. The ranking below leans on the
-            dimensions that did vary.
+            This is a self-report snapshot, not a verdict on who you are. What
+            follows is a shortlist to investigate, built from how you answered —
+            not a measurement of what you're capable of.
+          </p>
+          <p className="font-mono text-sm text-haze leading-relaxed">
+            One note on the numbers: the Values facets (autonomy, impact,
+            income, stability, mastery, recognition) aren't measured data for
+            any industry below — O*NET, the government dataset this runs on,
+            dropped Work Values entirely. Those six figures per industry are
+            Lodestar's own editorial estimate — our judgment, plainly labelled,
+            not data dressed up as fact. Anywhere that estimate drives a
+            reason, it says so.
           </p>
         </div>
-      )}
 
-      {summary.whollyFlat ? (
-        <div className="w-full max-w-2xl font-body text-lg leading-relaxed text-center flex flex-col gap-3">
-          <p className="font-display text-2xl">
-            This instrument did not find a signal in these answers.
-          </p>
-          <p className="text-haze">
-            Every dimension came back too even to rank — nothing stood out
-            enough to build a shortlist on. That's a real result, not a
-            failure: it means these seventy-two statements didn't surface a
-            strong lean, not that you lack one. The full readout below still
-            shows exactly where every facet landed.
-          </p>
-        </div>
-      ) : (
-        <div className="w-full max-w-2xl flex flex-col gap-8">
-          {cards.map(card => (
-            <IndustryCard
-              key={card.key}
-              match={card.match}
-              reasons={card.reasons}
-              rank={card.rank}
-              tied={card.tied}
-            />
-          ))}
-        </div>
-      )}
+        {!summary.whollyFlat && summary.flat.length > 0 && (
+          <div className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
+            <p>
+              Your answers ran too even across {joinList(summary.flat)} to
+              say much there — those facets sat too close together to tell
+              what you actually favor. The ranking below leans on the
+              dimensions that did vary.
+            </p>
+          </div>
+        )}
 
-      <ProfileReadout profile={profile} />
+        {summary.whollyFlat ? (
+          <div className="w-full max-w-2xl font-body text-lg leading-relaxed text-center flex flex-col gap-3">
+            <p className="font-display text-2xl">
+              This instrument did not find a signal in these answers.
+            </p>
+            <p className="text-haze">
+              Every dimension came back too even to rank — nothing stood out
+              enough to build a shortlist on. That's a real result, not a
+              failure: it means these seventy-two statements didn't surface a
+              strong lean, not that you lack one. The full readout below still
+              shows exactly where every facet landed.
+            </p>
+          </div>
+        ) : (
+          <div className="w-full max-w-2xl flex flex-col gap-8">
+            {cards.map(card => (
+              <IndustryCard
+                key={card.key}
+                match={card.match}
+                reasons={card.reasons}
+                rank={card.rank}
+                tied={card.tied}
+              />
+            ))}
+          </div>
+        )}
 
-      <footer className="w-full max-w-2xl font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
-        <p>{ONET_ATTRIBUTION}</p>
-      </footer>
+        <ProfileReadout profile={profile} />
 
-      <button
-        type="button"
-        onClick={onRestart}
-        className="font-display text-base px-6 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60"
-      >
-        Start over
-      </button>
+        <footer className="w-full max-w-2xl font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
+          <p>{ONET_ATTRIBUTION}</p>
+        </footer>
+
+        <button
+          type="button"
+          onClick={onRestart}
+          className="font-display text-base px-6 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60"
+        >
+          Start over
+        </button>
+      </div>
     </main>
   )
 }
