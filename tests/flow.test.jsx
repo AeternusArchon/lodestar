@@ -54,3 +54,82 @@ describe('assessment flow', () => {
     expect(() => render(<App />)).not.toThrow()
   })
 })
+
+// Fix round 1: coordinator-flagged findings.
+describe('keyboard vs. native radio-group navigation (Finding 1)', () => {
+  it('does not change the question when an arrow key originates from a radio', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    const radios = screen.getAllByRole('radio')
+    // Dispatched on the radio itself (not window), so e.target is the input —
+    // this is what the earlier unconditional preventDefault() broke: the
+    // browser's native "move the checked option" behaviour never gets a
+    // chance to run, and item navigation fires in its place instead.
+    fireEvent.keyDown(radios[2], { key: 'ArrowRight' })
+    expect(screen.getByText(QUESTIONS[0].text)).toBeDefined()
+  })
+
+  it('still navigates on arrow keys when focus is not on a radio', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(screen.getByText(QUESTIONS[1].text)).toBeDefined()
+  })
+})
+
+describe('Back and Next controls (Finding 2)', () => {
+  it('disables Back on the first item and enables it once away from the first', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    expect(screen.getByRole('button', { name: /back/i }).disabled).toBe(true)
+
+    fireEvent.keyDown(window, { key: '3' })
+    expect(screen.getByRole('button', { name: /back/i }).disabled).toBe(false)
+  })
+
+  it('disables Next until the current item has an answer, then advances on click', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    const next = screen.getByRole('button', { name: /next/i })
+    expect(next.disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('radio', { name: /3/ }))
+    expect(next.disabled).toBe(false)
+
+    fireEvent.click(next)
+    expect(screen.getByText(QUESTIONS[1].text)).toBeDefined()
+  })
+
+  it('Back returns to the previous item without losing the answer recorded there', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /3/ }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /back/i }))
+    expect(screen.getByText(QUESTIONS[0].text)).toBeDefined()
+    expect(screen.getByRole('radio', { name: /3/ }).checked).toBe(true)
+  })
+})
+
+describe('session-restore validation (Finding 3)', () => {
+  it('falls back to a fresh session when the stored answers are null', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 3, answers: null }))
+    render(<App />)
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('falls back to a fresh session when the stored index is out of bounds', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 9999, answers: {} }))
+    render(<App />)
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('falls back to a fresh session when the stored stage is unknown', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'bogus', index: 0, answers: {} }))
+    render(<App />)
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+})
