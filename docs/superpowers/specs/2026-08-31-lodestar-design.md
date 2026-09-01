@@ -269,7 +269,7 @@ Verified directly against `db_30_3_text.zip` (13.2 MB) on 2026-08-31:
 | Facet group | Source table | Element IDs | Scale | Derivable |
 |---|---|---|---|---|
 | Interests (6) | `Career Interest Types.txt` | 1.B.1.a–f | `OI`, 1–7 | **Yes** |
-| Aptitudes (6) | `Abilities.txt`, `Skills.txt` | 1.A.\*, 2.B.\* | `LV`, 0–7 | **Yes** |
+| Aptitudes (6) | `Abilities.txt`, `Transferable Skills.txt` | 1.A.\*, 2.B.\* | `LV`, 0–7 | **Yes** |
 | Context (6) | `Work Context.txt` | 4.C.\* | `CX`, 1–5 | **Yes** |
 | Values (6) | — none — | — | — | **No** |
 
@@ -314,14 +314,33 @@ so a future reader can disagree with it specifically.
 | `verbal` | 1.A.1.a.1 Oral Comprehension + 1.A.1.a.2 Written Comprehension |
 | `spatial` | 1.A.1.f.1 Spatial Orientation + 1.A.1.f.2 Visualization |
 | `creative` | 1.A.1.b.2 Originality + 1.A.1.b.1 Fluency of Ideas |
-| `interpersonal` | 2.B.1.a Social Perceptiveness |
+| `interpersonal` | 2.B.1.a Social Perceptiveness *(in `Transferable Skills.txt`, not `Skills.txt`)* |
 | `organizational` | 4.C.3.b.4 Importance of Being Exact or Accurate |
-| `peopleFacing` | 4.C.1.a.4 Contact With Others |
+| `peopleFacing` | 4.C.1.b.1.f Deal With External Customers or the Public |
 | `physicality` | 4.C.2.d.1.b Spend Time Standing |
 | `structurePref` | 4.C.3.b.7 Importance of Repeating Same Tasks |
 | `pace` | 4.C.3.d.1 Time Pressure |
-| `riskTolerance` | 4.C.3.c Competition |
+| `riskTolerance` | 4.C.3.c.1 Level of Competition *(parent 4.C.3.c carries no data rows)* |
 | `scheduleFlex` | 4.C.3.a.4 Freedom to Make Decisions |
+
+#### Corrections found during implementation
+
+Three of the mappings above were wrong when first written and were corrected against
+the real archive during Task 5:
+
+- `2.B.1.a` lives in `Transferable Skills.txt`, not `Skills.txt`.
+- `4.C.3.c` is a parent element carrying no data rows; the measured element is
+  `4.C.3.c.1`.
+- `peopleFacing` originally mapped to `4.C.1.a.4` (Contact With Others), which
+  compressed into a 74–97 band across all 22 industries. Because matching is cosine
+  over dimension-mean-centred vectors, a facet that barely varies relative to its five
+  siblings contributes almost no signal while still consuming a sixth of the context
+  dimension's weight. It was replaced with `4.C.1.b.1.f`, which both discriminates and
+  is closer to what a person means by people-facing work.
+
+These are recorded rather than silently patched, because the mappings are
+interpretations and a future reader should be able to see which ones were revised and
+why.
 
 ### 3.9 Dimension weighting — owner-authored
 
