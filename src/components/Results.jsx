@@ -117,13 +117,18 @@ export default function Results({ answers, onRestart }) {
             not a measurement of what you're capable of.
           </p>
           <p className="font-mono text-sm text-haze leading-relaxed">
-            One note on the numbers: the Values facets (autonomy, impact,
-            income, stability, mastery, recognition) aren't measured data for
-            any industry below — O*NET, the government dataset this runs on,
-            dropped Work Values entirely. Those six figures per industry are
-            Lodestar's own editorial estimate — our judgment, plainly labelled,
-            not data dressed up as fact. Anywhere that estimate drives a
-            reason, it says so.
+            One note on the numbers: seven of the twenty-four facets aren't
+            measured data for any industry below. The six Values facets
+            (autonomy, impact, income, stability, mastery, recognition) are
+            missing because O*NET, the government dataset this runs on, dropped
+            Work Values entirely. Schedule freedom is missing because O*NET has
+            no measure of hours or place on a scale this can use — it records
+            work schedules as categories, not as a number — and the element we
+            first used turned out to measure decision-making discretion
+            instead, which is a different thing. So we estimated it. Those
+            seven figures per industry are Lodestar's own editorial estimate —
+            our judgment, plainly labelled, not data dressed up as fact.
+            Anywhere that estimate drives a reason, it says so.
           </p>
         </div>
 

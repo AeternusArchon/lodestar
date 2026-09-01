@@ -3,6 +3,9 @@ import { facetsByDimension } from './facets.js'
 
 const VALUE_KEYS = facetsByDimension('values').map(f => f.key)
 
+/** Every facet on an industry vector that is authored here rather than derived. */
+const AUTHORED_KEYS = [...VALUE_KEYS, 'scheduleFlex']
+
 /**
  * The six Values facets have no O*NET source (spec §3.8) and are authored here.
  * They are editorial estimates of what a career in this industry typically
@@ -11,7 +14,7 @@ const VALUE_KEYS = facetsByDimension('values').map(f => f.key)
  * `income` weighs the floor as well as the ceiling, `stability` is the odds
  * the job still exists in five years, `recognition` is how much visible
  * advancement the path offers. Keys match industry-vectors.json exactly —
- * a mismatch leaves a vector missing its 18 derived facets and fails the test.
+ * a mismatch leaves a vector missing its 17 derived facets and fails the test.
  */
 const AUTHORED_VALUES = {
   'healthcare-medicine':                   { autonomy: 38, impact: 92, income: 72, stability: 88, mastery: 82, recognition: 55 },
@@ -36,6 +39,87 @@ const AUTHORED_VALUES = {
   'hospitality-travel-food':               { autonomy: 38, impact: 42, income: 35, stability: 45, mastery: 58, recognition: 38 },
   'real-estate-property':                  { autonomy: 82, impact: 40, income: 65, stability: 35, mastery: 55, recognition: 70 },
   'personal-services-wellness':            { autonomy: 78, impact: 62, income: 35, stability: 42, mastery: 65, recognition: 40 },
+}
+
+/**
+ * `scheduleFlex` is authored here too, for the same reason the Values facets
+ * are: O*NET has no measure of it on a usable scale.
+ *
+ * It was originally derived from 4.C.3.a.4 ("Freedom to Make Decisions"), which
+ * O*NET files under "Criticality of Position". That element measures decision
+ * DISCRETION, not schedule freedom, and the two are not the same thing — a
+ * police sergeant and a charge nurse have enormous discretion inside a shift
+ * they did not choose and cannot leave. The derived numbers showed it: public
+ * safety ranked 3rd of 22 for "schedule freedom", teaching outranked the
+ * skilled trades, and arts and entertainment came 11th. O*NET's actual
+ * schedule elements (4.C.3.d.4, 4.C.3.d.8) are categorical `CT` items with
+ * percentage-by-category rows, not the 1-5 `CX` means this pipeline consumes,
+ * so there is no clean re-mapping. The honest move is to author it and say so.
+ *
+ * The question being answered per industry: how much does a career here
+ * typically let a person choose their own hours and their own location? High
+ * means you set the calendar; low means the calendar is handed to you and you
+ * have to be somewhere specific when it says so.
+ *
+ * This is deliberately NOT a restatement of `autonomy`. Autonomy is control
+ * over HOW the work gets done; this is control over WHEN and WHERE. They come
+ * apart hard, and the estimates below were written from that question alone,
+ * without reference to the autonomy column: farming and research rate high on
+ * autonomy and middling here, because the season and the experiment set the
+ * clock even when no supervisor does; government rates low on autonomy and
+ * middling here, because flex-time and telework are real civil-service terms
+ * even inside a rigid chain of command; teaching, healthcare and public safety
+ * fall far below their autonomy figures, because discretion inside a shift is
+ * not the same as choosing the shift.
+ *
+ * A note for anyone re-checking the correlation that got the derived mapping
+ * removed. These authored figures correlate about r = 0.76 with `autonomy`,
+ * HIGHER than the 0.543 of the element they replace, and that is not a
+ * regression. The old figure was attenuated by restriction of range: it had a
+ * standard deviation of 6.4 across the 22 industries against 22.9 here, and a
+ * near-constant column cannot correlate with anything. Self-directed knowledge
+ * and creative work really does tend to carry both freedoms at industry
+ * granularity, and the honest number is the one that says so. The numbers were
+ * not tuned to lower it. What matters is that the ordering is now face-valid
+ * where the derived one was not — police and firefighters last, hospitality
+ * and the production line beside them, software and freelance creative work
+ * first — and that the respondent's own two facets come from four independent
+ * items (AUT-01/02, SCH-01/02) and are under no such constraint.
+ *
+ * The range is used honestly rather than levelled out — 8 to 88 — because a
+ * facet that barely varies consumes a sixth of the context dimension's weight
+ * while contributing almost no signal to a cosine over mean-centred vectors.
+ * That is the same failure that got the original `peopleFacing` mapping
+ * replaced; see data-build/derive-industry-vectors.mjs.
+ */
+const AUTHORED_SCHEDULE_FLEX = {
+  // Highest: the work is portable, or the calendar is yours to fill.
+  'technology-software':                   88,  // remote-default, async, judged on output rather than attendance
+  'arts-design-entertainment':             85,  // freelance and studio work; call times and tour dates pull it back from 100
+  'real-estate-property':                  72,  // no office and your own showings — but clients are free evenings and weekends
+  'marketing-advertising-media':           68,  // deadline-driven and widely hybrid; launches and shoots still bind
+  'personal-services-wellness':            60,  // you own the book, and it fills at six in the morning and on Saturdays
+
+  // Middle: real latitude, bounded by a site, a season, or someone else's clock.
+  'business-consulting-admin':             50,  // desk work that travels; consulting runs on the client's calendar
+  'law-legal-services':                    50,  // draft from anywhere at midnight, but court dates and filings do not move
+  'engineering':                           48,  // design work travels; labs, plants and site visits do not
+  'science-research':                      48,  // nobody assigns your hours — the experiment does, and the bench is where it is
+  'finance-banking-insurance':             45,  // analysts and underwriters go hybrid; market hours and branch hours do not
+  'government-public-admin':               42,  // rigid grade and chain of command, but flex-time and telework are real terms here
+  'social-services-counseling':            42,  // caseloads, court dates and home visits set the day; private practice escapes it
+  'construction-skilled-trades':           35,  // on site at six-thirty, finished when the light goes; contractors pick the jobs
+
+  // Low: a schedule you are handed, at a place you have to be.
+  'energy-utilities-environment':          30,  // plant shifts, dispatched crews, on call when the lights go out
+  'transportation-logistics-supply-chain': 30,  // dispatch windows and delivery times; owner-operators choose their loads
+  'agriculture-natural-resources':         28,  // no supervisor sets your hours, but planting, weather and livestock do
+  'retail-sales':                          22,  // the store's hours are your hours, posted weekly, rarely yours to pick
+  'education-teaching':                    20,  // the bell owns the day and the classroom owns the place
+  'healthcare-medicine':                   12,  // rotating shifts, nights, on call, and the patient is in the building
+  'manufacturing-production':              10,  // the line runs on a shift and you are standing on it
+  'hospitality-travel-food':               10,  // nights, weekends and holidays, on premises, by definition
+  'public-safety-protective':               8,  // rotating shifts, mandatory overtime, called in on holidays
 }
 
 /**
@@ -271,6 +355,10 @@ const META = {
 export const INDUSTRIES = Object.keys(META).map(key => ({
   key,
   ...META[key],
-  vector: { ...derived.industries[key], ...AUTHORED_VALUES[key] },
-  authoredFacets: VALUE_KEYS,
+  vector: {
+    ...derived.industries[key],
+    ...AUTHORED_VALUES[key],
+    scheduleFlex: AUTHORED_SCHEDULE_FLEX[key],
+  },
+  authoredFacets: AUTHORED_KEYS,
 }))

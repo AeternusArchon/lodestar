@@ -31,6 +31,19 @@ describe('<Results>', () => {
     expect(document.body.textContent).toMatch(/estimate|not measured|our judgment/i)
   })
 
+  // The screen-level half of spec §3.8 correction 4: schedule freedom is no
+  // longer derived from O*NET, so the page must say so alongside the Values
+  // facets rather than presenting it as measured data.
+  it('names schedule freedom among the editorial estimates, not just the Values facets', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const text = document.body.textContent
+    expect(text).toMatch(/seven of the twenty-four facets/i)
+    expect(text).toMatch(/schedule freedom is missing/i)
+    // And the inline note must not have been left narrowed to Values, or it
+    // renders a false sentence under a schedule-freedom reason.
+    expect(text).not.toMatch(/O\*NET does not measure Values/i)
+  })
+
   it('declines to rank a wholly flat profile', () => {
     render(<Results answers={uniform} onRestart={() => {}} />)
     expect(document.body.textContent).toMatch(/did not find a signal|too even to rank/i)

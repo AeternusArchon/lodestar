@@ -9,14 +9,18 @@ function ordinal(n) {
 const round = n => Math.round(n)
 
 /**
- * The note appended to any reason built on a Values facet. The six Values
- * numbers per industry are not O*NET data — O*NET dropped Work Values from its
- * database — they're Lodestar's own editorial estimate of what the industry
- * typically offers. Every reason that leans on one must say so inline, right
- * where the reader is weighing it, not in a footnote they may never reach.
+ * The note appended to any reason built on an authored facet. Seven of the 24
+ * numbers per industry are not O*NET data — the six Values facets, which O*NET
+ * dropped from its database, and schedule freedom, which O*NET has no measure
+ * of on a usable scale. They are Lodestar's own editorial estimate of what the
+ * industry typically offers. Every reason that leans on one must say so
+ * inline, right where the reader is weighing it, not in a footnote they may
+ * never reach. Which facets those are is read off the industry's own
+ * `authoredFacets` (see engine/explain.js), so this copy has to hold for all
+ * seven — do not narrow it back to Values.
  */
 const AUTHORED_NOTE =
-  "This number is Lodestar's editorial estimate, not measured data — O*NET does not measure Values, so we judged this one ourselves."
+  "This number is Lodestar's editorial estimate, not measured data — O*NET has no usable measure of this one, so we judged it ourselves."
 
 /**
  * Turns one computed Reason into fixed, deterministic prose. Same reason in,

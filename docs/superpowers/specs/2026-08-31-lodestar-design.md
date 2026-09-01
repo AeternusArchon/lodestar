@@ -259,8 +259,11 @@ a cross-cutting note triggered by high `autonomy`, high `riskTolerance`, and hig
 
 ### 3.8 Deriving the industry vectors
 
-**18 of the 24 facets are derived from real data, not invented.** Only the six Values
-facets are hand-authored, and the reason is a hard constraint rather than a choice.
+**17 of the 24 facets are derived from real data, not invented.** Seven are
+hand-authored — the six Values facets and `scheduleFlex` — and in each case the reason
+is a hard constraint rather than a choice. (This section originally read "18 of 24" and
+listed `scheduleFlex` as derived; see *Corrections found during implementation* below
+for why it moved.)
 
 #### What the O*NET database actually contains
 
@@ -269,8 +272,9 @@ Verified directly against `db_30_3_text.zip` (13.2 MB) on 2026-08-31:
 | Facet group | Source table | Element IDs | Scale | Derivable |
 |---|---|---|---|---|
 | Interests (6) | `Career Interest Types.txt` | 1.B.1.a–f | `OI`, 1–7 | **Yes** |
-| Aptitudes (6) | `Abilities.txt`, `Transferable Skills.txt` | 1.A.\*, 2.B.\* | `LV`, 0–7 | **Yes** |
-| Context (6) | `Work Context.txt` | 4.C.\* | `CX`, 1–5 | **Yes** |
+| Aptitudes (6) | `Abilities.txt`, `Transferable Skills.txt`, `Work Context.txt` | 1.A.\*, 2.B.\*, 4.C.3.b.4 | `LV`, 0–7 · `CX`, 1–5 | **Yes** |
+| Context (5 of 6) | `Work Context.txt` | 4.C.\* | `CX`, 1–5 | **Yes** |
+| Context — `scheduleFlex` | — none usable — | — | — | **No** |
 | Values (6) | — none — | — | — | **No** |
 
 **Work Values has been removed from the O*NET Content Model.** The 1.B branch runs
@@ -280,11 +284,19 @@ Work Importance Locator still exists as a standalone counseling instrument, but 
 per-occupation data is not published in the database. Any design that assumed otherwise
 — including this spec's first revision — is wrong.
 
-The six Values facets are therefore **hand-authored per industry and labeled as such in
-the UI.** `industries.js` carries a `derived: true|false` flag per facet group, and the
-results page marks value-driven reasoning as an editorial judgment rather than
-measured data. This is the honest handling; silently mixing authored numbers into a
-vector presented as empirical would not be.
+**O*NET also carries no usable measure of schedule freedom.** The elements that
+describe when and where a person works — `4.C.3.d.4` (work schedule) and `4.C.3.d.8`
+(duration of a typical work week) — are categorical `CT` items published as
+percentage-by-category (`CTP`) rows, not the 1–5 `CX` means this pipeline consumes.
+There is no continuous element for it.
+
+The six Values facets and `scheduleFlex` are therefore **hand-authored per industry and
+labeled as such in the UI.** `industries.js` carries an `authoredFacets` list per
+industry, `engine/explain.js` reads the authored flag off that list rather than
+recomputing it from a dimension, and the results page marks any reasoning driven by one
+of those seven numbers as an editorial judgment rather than measured data. This is the
+honest handling; silently mixing authored numbers into a vector presented as empirical
+would not be.
 
 #### Derivation procedure
 
@@ -321,12 +333,21 @@ so a future reader can disagree with it specifically.
 | `structurePref` | 4.C.3.b.7 Importance of Repeating Same Tasks |
 | `pace` | 4.C.3.d.1 Time Pressure |
 | `riskTolerance` | 4.C.3.c.1 Level of Competition *(parent 4.C.3.c carries no data rows)* |
-| `scheduleFlex` | 4.C.3.a.4 Freedom to Make Decisions |
+
+`scheduleFlex` is deliberately absent from this table. It is authored, not derived —
+see correction 4 below.
+
+#### The authored facets
+
+| Lodestar facet | Authored in | Why |
+|---|---|---|
+| `autonomy`, `impact`, `income`, `stability`, `mastery`, `recognition` | `industries.js` → `AUTHORED_VALUES` | Work Values removed from the O*NET Content Model |
+| `scheduleFlex` | `industries.js` → `AUTHORED_SCHEDULE_FLEX` | No O*NET element measures hours or place on a continuous scale |
 
 #### Corrections found during implementation
 
-Three of the mappings above were wrong when first written and were corrected against
-the real archive during Task 5:
+Four of the mappings above were wrong when first written and were corrected against
+the real archive during Task 5 and the reviews that followed:
 
 - `2.B.1.a` lives in `Transferable Skills.txt`, not `Skills.txt`.
 - `4.C.3.c` is a parent element carrying no data rows; the measured element is
@@ -337,6 +358,20 @@ the real archive during Task 5:
   siblings contributes almost no signal while still consuming a sixth of the context
   dimension's weight. It was replaced with `4.C.1.b.1.f`, which both discriminates and
   is closer to what a person means by people-facing work.
+- `scheduleFlex` mapped to `4.C.3.a.4` (Freedom to Make Decisions), which O*NET files
+  under 4.C.3.a "Criticality of Position" — decision *discretion*, not schedule
+  freedom. The shipped numbers falsify it: ordered by the derived value, public safety
+  ranked 3rd of 22 and teaching outranked the skilled trades, while arts and
+  entertainment came 11th. Police, firefighters and teachers have among the least
+  schedule freedom of any occupation in the file and a great deal of discretion. It
+  also failed the bar set two bullets above — a 24.5-point spread, tighter than the
+  mapping already rejected for compression — and correlated r = 0.543 with the
+  authored `autonomy` facet. No clean re-mapping exists, so the facet was removed from
+  the element map and is now authored per industry in `AUTHORED_SCHEDULE_FLEX`. It was
+  not dropped: SCH-01 and SCH-02 ask a real question about hours and place, and the
+  user side of the facet carries genuine signal. Presenting a discretion number to a
+  reader as measured schedule freedom, on a page that has just told them the
+  O*NET-derived facets are the trustworthy ones, was the actual harm.
 
 These are recorded rather than silently patched, because the mappings are
 interpretations and a future reader should be able to see which ones were revised and

@@ -4,12 +4,17 @@ const ONET = 'data-build/onet/db_30_3_text'
 const OUT = 'src/data/industry-vectors.json'
 
 // Scale bounds are read from O*NET's documented ranges, never inferred from the data.
-const SCALE_BOUNDS = { OI: [1, 7], CX: [1, 5], LV: [0, 7], IM: [1, 5] }
+const SCALE_BOUNDS = { OI: [1, 7], CX: [1, 5], LV: [0, 7] }
 
 // Each Lodestar facet maps to one or more O*NET elements. These are interpretations,
 // not identities — disagree with them here, in one place.
 //
-// Three corrections versus the original plan:
+// This map derives SEVENTEEN of Lodestar's 24 facets. The other seven — the six
+// Values facets and scheduleFlex — have no usable O*NET source and are authored by
+// hand in src/data/industries.js, where they are labelled as editorial estimates
+// everywhere they surface. See correction 4 below for why scheduleFlex joined them.
+//
+// Four corrections versus the original plan:
 //
 // Two forced by the actual shape of the O*NET 30.3 text release (verified against
 // data-build/onet/db_30_3_text):
@@ -30,6 +35,23 @@ const SCALE_BOUNDS = { OI: [1, 7], CX: [1, 5], LV: [0, 7], IM: [1, 5] }
 //      spread) and matches what "people-facing" actually means to a person choosing
 //      a career. Same file, same CX scale, same 1-5 bounds. See task-5-report.md for
 //      the before/after comparison and re-verification.
+//
+// One forced by construct validity — the mapping measured the wrong thing:
+//   4. scheduleFlex was 4.C.3.a.4 ("Freedom to Make Decisions"), which O*NET files
+//      under 4.C.3.a "Criticality of Position". That element measures decision
+//      DISCRETION, not schedule freedom, and the derived numbers say so plainly:
+//      public safety ranked 3rd of 22 and teaching outranked the skilled trades,
+//      while arts and entertainment — the archetype of setting your own hours —
+//      landed 11th. Police, firefighters and teachers have high discretion and
+//      close to the least schedule freedom of any occupation in the file. It also
+//      failed correction 3's own bar (24.5-point spread, tighter than the mapping
+//      already rejected) and correlated r = 0.543 with the authored `autonomy`
+//      Values facet. No clean re-mapping exists: 4.C.3.d.4 and 4.C.3.d.8 (work
+//      schedule, duration of typical week) are `CT` categorical elements with `CTP`
+//      percentage rows, not 1-5 `CX` means. So the facet was REMOVED from this map
+//      and authored per industry in src/data/industries.js instead, where the UI
+//      labels it an editorial estimate. The facet itself stays — SCH-01 and SCH-02
+//      ask a real question about hours and place, and dropping it loses signal.
 const MAP = {
   // Interests: 1.B.1.a-f, scale OI
   realistic:      { scale: 'OI', els: ['1.B.1.a'], file: 'Career Interest Types.txt' },
@@ -39,7 +61,8 @@ const MAP = {
   enterprising:   { scale: 'OI', els: ['1.B.1.e'], file: 'Career Interest Types.txt' },
   conventional:   { scale: 'OI', els: ['1.B.1.f'], file: 'Career Interest Types.txt' },
 
-  // Aptitudes: Abilities (LV) and Skills (LV)
+  // Aptitudes: Abilities (LV), Transferable Skills (LV), and — for `organizational`,
+  // which has no Abilities or Skills analogue — one Work Context element (CX).
   analytical:     { scale: 'LV', els: ['1.A.1.b.4', '1.A.1.b.3'], file: 'Abilities.txt' },
   verbal:         { scale: 'LV', els: ['1.A.1.a.1', '1.A.1.a.2'], file: 'Abilities.txt' },
   spatial:        { scale: 'LV', els: ['1.A.1.f.1', '1.A.1.f.2'], file: 'Abilities.txt' },
@@ -53,7 +76,6 @@ const MAP = {
   structurePref:  { scale: 'CX', els: ['4.C.3.b.7'], file: 'Work Context.txt' },
   pace:           { scale: 'CX', els: ['4.C.3.d.1'], file: 'Work Context.txt' },
   riskTolerance:  { scale: 'CX', els: ['4.C.3.c.1'], file: 'Work Context.txt' },
-  scheduleFlex:   { scale: 'CX', els: ['4.C.3.a.4'], file: 'Work Context.txt' },
 }
 
 function loadTable(name) {

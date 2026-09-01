@@ -1,9 +1,8 @@
-import { FACETS, facetsByDimension } from '../data/facets.js'
+import { FACETS } from '../data/facets.js'
 import { QUESTIONS } from '../data/questions.js'
 import { INDUSTRIES } from '../data/industries.js'
 
 const facetOf = Object.fromEntries(FACETS.map(f => [f.key, f]))
-const VALUE_KEYS = new Set(facetsByDimension('values').map(f => f.key))
 const ITEMS_PER_REASON = 2
 
 /** The two items this respondent answered most strongly on a given facet. */
@@ -36,6 +35,20 @@ function blurbFor(facet, score) {
   return score >= 50 ? facet.blurb : facet.blurbLow
 }
 
+/**
+ * Whether this industry's number for this facet is an editorial estimate.
+ *
+ * Read off the industry's own `authoredFacets`, never recomputed from a
+ * dimension. The authored set is not "the Values dimension" — `scheduleFlex`
+ * is a Context facet that O*NET cannot measure on a usable scale and that
+ * industries.js therefore authors by hand — so deriving this flag from
+ * facets.js would silently present an estimate as measured data. The industry
+ * data is the single source of truth for its own provenance.
+ */
+function isAuthored(industry, facetKey) {
+  return industry.authoredFacets.includes(facetKey)
+}
+
 function toReason(facetKey, contribution, profile, industry, answers) {
   const facet = facetOf[facetKey]
   const score = profile[facetKey]
@@ -47,7 +60,7 @@ function toReason(facetKey, contribution, profile, industry, answers) {
     target: industry.vector[facetKey],
     contribution,
     items: drivingItems(facetKey, answers),
-    authored: VALUE_KEYS.has(facetKey),
+    authored: isAuthored(industry, facetKey),
   }
 }
 
@@ -57,7 +70,17 @@ export function explainMatch(match, profile, answers, { flat = [] } = {}) {
     .filter(([key]) => !flat.includes(facetOf[key].dimension))
     .sort((a, b) => b[1] - a[1])
 
-  const positives = usable.slice(0, 3)
+  // Filter to strictly positive contributions before taking the top three.
+  // These render under a heading that reads "Why this fits", so a facet that
+  // pulled the fit DOWN must never appear there — even as the third-strongest
+  // of a weak set. Never observed across 2,692 rendered cards, because a
+  // shortlisted industry has always had at least three positive contributors,
+  // but the guarantee should be structural rather than statistical: a future
+  // weighting change or a flatter profile could exhaust them. Fewer than three
+  // reasons is the correct output when fewer than three facets helped.
+  const positives = usable
+    .filter(([, c]) => c > 0)
+    .slice(0, 3)
     .map(([key, c]) => toReason(key, c, profile, industry, answers))
 
   const worst = usable[usable.length - 1]

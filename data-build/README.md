@@ -14,9 +14,11 @@ Regenerate whenever `soc-by-industry.json` changes. The output,
 `src/data/industry-vectors.json`, **is** checked in — the app must build without
 the 13 MB source.
 
-O*NET 30.3 has no Work Values data. See spec §3.8.
+O*NET 30.3 has no Work Values data, and no usable measure of schedule freedom. The
+script derives **17** of the 24 facets; the other seven are authored by hand in
+`src/data/industries.js`. See spec §3.8.
 
-## Two corrections versus the original plan
+## Four corrections versus the original plan
 
 The element map in `derive-industry-vectors.mjs` was planned against O*NET's
 documented content model, then checked against the actual downloaded text files.
@@ -36,6 +38,26 @@ to the data rather than the other way around:
 
 Both were confirmed empirically against the extracted `db_30_3_text/` files before
 being changed — see `data-build/validate-soc.mjs`.
+
+Two further corrections were made after review, on the meaning of the mappings rather
+than on the shape of the archive:
+
+3. **`peopleFacing` measured too little.** It originally mapped to `4.C.1.a.4`
+   ("Contact With Others" — any contact, with anyone, coworkers included), which
+   compressed to a 74–97 band across all 22 industries because nearly every job
+   involves talking to someone. Replaced with `4.C.1.b.1.f` ("Deal With External
+   Customers or the Public in General"), which spans roughly 30–84 and matches what
+   "people-facing" means to a person choosing a career. Same file, same `CX` scale.
+4. **`scheduleFlex` measured the wrong thing, and was removed.** It mapped to
+   `4.C.3.a.4` ("Freedom to Make Decisions"), which O*NET files under 4.C.3.a
+   "Criticality of Position" — decision *discretion*, not schedule freedom. The
+   derived numbers said so: public safety ranked 3rd of 22, teaching outranked the
+   skilled trades, and arts and entertainment came 11th. It also spanned only 24.5
+   points, tighter than the mapping rejected in correction 3. No clean re-mapping
+   exists — `4.C.3.d.4` and `4.C.3.d.8` are categorical `CT` elements with `CTP`
+   percentage rows, not 1–5 `CX` means — so the facet was dropped from the map and is
+   now authored per industry in `src/data/industries.js`, labelled in the UI as an
+   editorial estimate alongside the six Values facets.
 
 ## Validating the SOC join
 
