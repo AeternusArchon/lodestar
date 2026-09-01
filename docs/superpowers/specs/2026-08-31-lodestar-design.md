@@ -68,9 +68,10 @@ lodestar/
     data/
       facets.js                    24 facet definitions, grouped by dimension
       questions.js                 72 items, each -> one facet, with direction
-      industry-vectors.json        18 derived facets x 22 industries (generated)
-      industries.js                merges the derived vectors with authored Values,
-                                   descriptions, job titles, and first moves
+      industry-vectors.json        17 derived facets x 22 industries (generated)
+      industries.js                merges the derived vectors with the seven authored
+                                   facets (Values + scheduleFlex), descriptions,
+                                   job titles, and first moves
     engine/
       score.js                     answers -> facet scores (0-100)
       match.js                     facet scores -> ranked industry fits
