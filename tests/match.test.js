@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { matchIndustries, centerByDimension } from '../src/engine/match.js'
 import { INDUSTRIES } from '../src/data/industries.js'
 import { FACETS } from '../src/data/facets.js'
+import { WEIGHTS } from '../src/engine/weights.js'
 
 const flat = v => Object.fromEntries(FACETS.map(f => [f.key, v]))
 
@@ -51,5 +52,51 @@ describe('matchIndustries', () => {
   it('rejects weights that do not sum to 1', () => {
     expect(() => matchIndustries(flat(50), { interests: 1, values: 1, aptitudes: 1, context: 1 }))
       .toThrow(/sum to 1/)
+  })
+
+  it('never reports fit above 100, even on a self-match', () => {
+    // Regression for: sqrt(x) * sqrt(x) does not always exactly reconstruct x,
+    // so an unclamped self-match cosine can land fractionally above 1 (observed
+    // in this environment: fit = 100.00000000000003 for
+    // agriculture-natural-resources matched against itself). The same
+    // reconstruction error can also land fractionally *below* 1 for other
+    // industries (observed: 99.99999999999999 for marketing-advertising-media)
+    // — that side is still within the documented 0-100 bound on its own, so it
+    // is asserted as <= 100 here rather than forced to exactly 100.
+    for (const target of INDUSTRIES) {
+      const [top] = matchIndustries(target.vector)
+      expect(top.fit).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('clamps a floating-point self-match overshoot to exactly 100', () => {
+    // Which industry's self-match overshoots is floating-point-noise dependent
+    // (it varies by JS engine/version, not by a logic bug — see the prior test's
+    // comment), so this recomputes the pre-clamp cosine/fit the same way
+    // matchIndustries does internally to find whichever industry (or industries)
+    // overshoot in the environment actually running this test, then asserts the
+    // real engine output clamps each of them down to exactly 100. If no industry
+    // overshoots here, the length check below fails loudly rather than passing
+    // vacuously.
+    const overshootKeys = INDUSTRIES.filter(industry => {
+      const u = centerByDimension(industry.vector)
+      let numerator = 0, norm = 0
+      for (const facet of FACETS) {
+        const w = WEIGHTS[facet.dimension]
+        numerator += w * u[facet.key] * u[facet.key]
+        norm += w * u[facet.key] ** 2
+      }
+      const rawFit = ((numerator / (Math.sqrt(norm) * Math.sqrt(norm)) + 1) / 2) * 100
+      return rawFit > 100
+    }).map(i => i.key)
+
+    expect(overshootKeys.length).toBeGreaterThan(0)
+
+    for (const key of overshootKeys) {
+      const industry = INDUSTRIES.find(i => i.key === key)
+      const [top] = matchIndustries(industry.vector)
+      expect(top.key).toBe(key)
+      expect(top.fit).toBe(100)
+    }
   })
 })

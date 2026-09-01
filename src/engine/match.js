@@ -44,10 +44,17 @@ export function matchIndustries(profile, weights = WEIGHTS) {
 
       const denom = Math.sqrt(uNorm) * Math.sqrt(tNorm)
       const cosine = denom === 0 ? 0 : numerator / denom
+      // Clamp to [0, 100]: floating-point sqrt(x)*sqrt(x) does not always exactly
+      // reconstruct x, so a near-parallel pair (notably u === t, a self-match) can
+      // push cosine fractionally past +-1 and fit fractionally past its documented
+      // 0-100 bounds. Do not remove this as redundant — it is load-bearing for
+      // exact self-matches, and downstream consumers (e.g. a percentage-width bar)
+      // rely on the bound actually holding.
+      const fit = Math.min(100, Math.max(0, ((cosine + 1) / 2) * 100))
       return {
         key: industry.key,
         name: industry.name,
-        fit: ((cosine + 1) / 2) * 100,
+        fit,
         contributions,
       }
     })
