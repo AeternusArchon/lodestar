@@ -8,11 +8,38 @@ import { QUESTIONS } from './data/questions.js'
 const STORAGE_KEY = 'lodestar.v1.session'
 const VALID_STAGES = ['intro', 'test', 'results']
 
+const QUESTION_IDS = new Set(QUESTIONS.map(q => q.id))
+
+/**
+ * Every entry in a stored answers map must be a known question id pointing at
+ * an integer 1-5. One bad entry rejects the whole session.
+ *
+ * The shape checks alone were not enough, and the failure mode was permanent.
+ * scoreAnswers() throws on any response outside 1..5 or not a finite number,
+ * and Results' own isComplete() gate only checks `!== undefined` — so a stored
+ * map of 72 out-of-range values (all 99) or 72 wrong-typed ones (all '4', the
+ * shape any storage-format change or hand-edit produces) passed both gates and
+ * reached the throw. There is no error boundary, so the app rendered blank,
+ * the bad session stayed in localStorage, and every reload failed identically.
+ * The only escape was clearing site data.
+ *
+ * Rejecting outright rather than repairing is deliberate: a session we cannot
+ * trust the values of is not one whose partial answers are worth restoring,
+ * and silently dropping the bad entries would leave the reader looking at a
+ * progress figure built from answers they never gave.
+ */
+function hasValidAnswers(answers) {
+  return Object.entries(answers).every(([id, value]) =>
+    QUESTION_IDS.has(id) && Number.isInteger(value) && value >= 1 && value <= 5
+  )
+}
+
 // Validated, not assumed: a stored session that is well-formed JSON but
 // structurally wrong (a null answers map, an out-of-range index, an unknown
-// stage) must still fall back to a fresh session rather than being handed to
-// the app as-is — QUESTIONS[9999] is undefined, and reading .text off it
-// throws, which is exactly what the try/catch below exists to prevent.
+// stage, an unscoreable answer value) must still fall back to a fresh session
+// rather than being handed to the app as-is — QUESTIONS[9999] is undefined,
+// and reading .text off it throws, which is exactly what the try/catch below
+// exists to prevent.
 function loadSession() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -22,7 +49,15 @@ function loadSession() {
     if (!VALID_STAGES.includes(parsed.stage)) return null
     if (!Number.isInteger(parsed.index) || parsed.index < 0 || parsed.index >= QUESTIONS.length) return null
     if (parsed.answers === null || typeof parsed.answers !== 'object') return null
-    return parsed
+    if (Array.isArray(parsed.answers)) return null
+    if (!hasValidAnswers(parsed.answers)) return null
+    // `notice` is transient — it names how many statements were unanswered at
+    // the moment the user tried to finish. It is persisted along with the rest
+    // of the session, so restoring it verbatim brings back a stale "5
+    // statements still need an answer" banner over a session the reader may
+    // have since completed. Drop it on load; the next finish attempt that
+    // needs one will set a fresh, correct one.
+    return { ...parsed, notice: null }
   } catch {
     return null
   }
@@ -72,7 +107,17 @@ export default function App() {
     function handleKey(e) {
       const onRadio = e.target instanceof HTMLInputElement && e.target.type === 'radio'
 
-      if (e.key.length === 1 && e.key >= '1' && e.key <= '5') {
+      // Modifier-held digits belong to the browser and the OS, not to us:
+      // Alt+3 and Meta+3 are tab-switching and application shortcuts on the
+      // major platforms, and Ctrl+digit is a zoom or tab binding. Answering
+      // the current item and advancing off the back of one of those is an
+      // answer the user never intended to give, on an item they may not have
+      // been looking at. Shift is not excluded — Shift+3 produces '#' rather
+      // than '3', so it never reaches this branch anyway.
+      const plainDigit = !e.ctrlKey && !e.altKey && !e.metaKey &&
+        e.key.length === 1 && e.key >= '1' && e.key <= '5'
+
+      if (plainDigit) {
         answerAndAdvance(QUESTIONS[index].id, Number(e.key))
       } else if (!onRadio && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault()

@@ -133,3 +133,72 @@ describe('session-restore validation (Finding 3)', () => {
     expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
   })
 })
+
+// A stored session whose SHAPE is fine but whose answer VALUES are unscoreable
+// used to pass every gate and reach scoreAnswers(), which throws. With no
+// error boundary the app rendered blank, the bad session stayed in
+// localStorage, and every reload failed identically — the only escape was
+// clearing site data.
+describe('corrupt stored answer values', () => {
+  const complete = value => Object.fromEntries(QUESTIONS.map(q => [q.id, value]))
+
+  it('falls back to a fresh session when stored answers are out of range', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'results', index: 71, answers: complete(99) }))
+    expect(() => render(<App />)).not.toThrow()
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('falls back to a fresh session when stored answers are strings', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'results', index: 71, answers: complete('4') }))
+    expect(() => render(<App />)).not.toThrow()
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('falls back to a fresh session when an answer key is not a question id', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 3, answers: { 'NOPE-01': 3 } }))
+    render(<App />)
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('falls back to a fresh session on a non-integer answer', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 2.5 } }))
+    render(<App />)
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+  })
+
+  it('still restores a session whose answer values are all valid', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 1, [QUESTIONS[1].id]: 5 } }))
+    render(<App />)
+    expect(screen.getByText(QUESTIONS[3].text)).toBeDefined()
+  })
+})
+
+describe('restored session hygiene and keyboard modifiers', () => {
+  it('does not restore a stale unanswered-statements notice', () => {
+    localStorage.setItem('lodestar.v1.session', JSON.stringify({
+      stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 4 },
+      notice: '5 statements still need an answer. Here\'s the first one.',
+    }))
+    render(<App />)
+    expect(screen.getByText(QUESTIONS[3].text)).toBeDefined()
+    expect(document.body.textContent).not.toMatch(/statements? still needs? an answer/i)
+  })
+
+  it('ignores the 1-5 shortcut when a modifier is held', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    for (const modifier of ['altKey', 'metaKey', 'ctrlKey']) {
+      fireEvent.keyDown(window, { key: '3', [modifier]: true })
+      expect(screen.getByText(QUESTIONS[0].text), modifier).toBeDefined()
+      expect(screen.queryByRole('radio', { name: /3/ }).checked, modifier).toBe(false)
+    }
+    // ...and still answers on a plain digit.
+    fireEvent.keyDown(window, { key: '3' })
+    expect(screen.getByText(QUESTIONS[1].text)).toBeDefined()
+  })
+})
