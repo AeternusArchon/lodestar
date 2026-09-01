@@ -61,8 +61,8 @@ export default function Results({ answers, onRestart }) {
             {missing} of {QUESTIONS.length} statements still need an answer.
           </p>
           <p className="font-body text-lg text-haze leading-relaxed">
-            The results depend on a complete set of answers. Start over to
-            answer what's left.
+            These answers can't be scored as saved. Start over from the
+            beginning.
           </p>
           <button
             type="button"
@@ -105,8 +105,9 @@ export default function Results({ answers, onRestart }) {
           income, stability, mastery, recognition) aren't measured data for
           any industry below — O*NET, the government dataset this runs on,
           dropped Work Values entirely. Those six figures per industry are
-          Lodestar's own editorial estimate, not our judgment dressed up as
-          fact. Anywhere that estimate drives a reason, it says so.
+          Lodestar's own editorial estimate — our judgment, plainly labelled,
+          not data dressed up as fact. Anywhere that estimate drives a
+          reason, it says so.
         </p>
       </div>
 
