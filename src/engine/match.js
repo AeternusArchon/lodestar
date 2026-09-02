@@ -23,34 +23,49 @@ export function centerByDimension(vector) {
 const weightOf = (facetKey, weights) =>
   weights[FACETS.find(f => f.key === facetKey).dimension]
 
+/**
+ * Weighted cosine between two ALREADY-CENTRED vectors, mapped onto 0-100,
+ * plus each facet's signed contribution to the numerator.
+ *
+ * Extracted from matchIndustries so the clamp below can be tested against the
+ * real code path. The previous regression test reimplemented this arithmetic
+ * and its own clamp locally, then asserted the two agreed — true by
+ * construction, and it kept passing with the clamp deleted from this file.
+ * A test that cannot fail is worse than no test, because it reads as cover.
+ */
+export function fitOf(u, t, weights = WEIGHTS) {
+  let numerator = 0, uNorm = 0, tNorm = 0
+  const contributions = {}
+
+  for (const facet of FACETS) {
+    const w = weightOf(facet.key, weights)
+    const term = w * u[facet.key] * t[facet.key]
+    contributions[facet.key] = term
+    numerator += term
+    uNorm += w * u[facet.key] ** 2
+    tNorm += w * t[facet.key] ** 2
+  }
+
+  const denom = Math.sqrt(uNorm) * Math.sqrt(tNorm)
+  const cosine = denom === 0 ? 0 : numerator / denom
+  // Clamp to [0, 100]: floating-point sqrt(x)*sqrt(x) does not always exactly
+  // reconstruct x, so a near-parallel pair (notably u === t, a self-match) can
+  // push cosine fractionally past +-1 and fit fractionally past its documented
+  // 0-100 bounds. Do not remove this as redundant — it is load-bearing for
+  // exact self-matches, and downstream consumers (e.g. a percentage-width bar)
+  // rely on the bound actually holding. tests/match.test.js exercises it
+  // through this function; deleting the clamp turns that test red.
+  const fit = Math.min(100, Math.max(0, ((cosine + 1) / 2) * 100))
+  return { fit, contributions }
+}
+
 export function matchIndustries(profile, weights = WEIGHTS) {
   assertWeightsValid(weights)
   const u = centerByDimension(profile)
 
   return INDUSTRIES
     .map(industry => {
-      const t = centerByDimension(industry.vector)
-      let numerator = 0, uNorm = 0, tNorm = 0
-      const contributions = {}
-
-      for (const facet of FACETS) {
-        const w = weightOf(facet.key, weights)
-        const term = w * u[facet.key] * t[facet.key]
-        contributions[facet.key] = term
-        numerator += term
-        uNorm += w * u[facet.key] ** 2
-        tNorm += w * t[facet.key] ** 2
-      }
-
-      const denom = Math.sqrt(uNorm) * Math.sqrt(tNorm)
-      const cosine = denom === 0 ? 0 : numerator / denom
-      // Clamp to [0, 100]: floating-point sqrt(x)*sqrt(x) does not always exactly
-      // reconstruct x, so a near-parallel pair (notably u === t, a self-match) can
-      // push cosine fractionally past +-1 and fit fractionally past its documented
-      // 0-100 bounds. Do not remove this as redundant — it is load-bearing for
-      // exact self-matches, and downstream consumers (e.g. a percentage-width bar)
-      // rely on the bound actually holding.
-      const fit = Math.min(100, Math.max(0, ((cosine + 1) / 2) * 100))
+      const { fit, contributions } = fitOf(u, centerByDimension(industry.vector), weights)
       return {
         key: industry.key,
         name: industry.name,

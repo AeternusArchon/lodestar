@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchIndustries, centerByDimension } from '../src/engine/match.js'
+import { matchIndustries, centerByDimension, fitOf } from '../src/engine/match.js'
 import { INDUSTRIES } from '../src/data/industries.js'
 import { FACETS } from '../src/data/facets.js'
 import { WEIGHTS } from '../src/engine/weights.js'
@@ -98,9 +98,14 @@ describe('matchIndustries', () => {
     const vector = syntheticVector(59)
     expect(rawSelfFit(vector), 'seed 59 must still overshoot pre-clamp').toBeGreaterThan(100)
 
-    // Same clamp, same expression, applied: Math.min(100, ...) is what stands
-    // between that raw value and a fit score outside its documented bounds.
-    expect(Math.min(100, Math.max(0, rawSelfFit(vector)))).toBe(100)
+    // The decisive assertion must run through the ENGINE, not through a local
+    // copy of the clamp. An earlier version of this test applied
+    // Math.min(100, ...) to rawSelfFit itself and asserted the result was 100 —
+    // true by construction, and it kept passing after the clamp was deleted
+    // from match.js. fitOf is the real code path matchIndustries uses, so
+    // removing the clamp there turns this red.
+    const centered = centerByDimension(vector)
+    expect(fitOf(centered, centered).fit).toBe(100)
   })
 
   it('holds the 0-100 bound on every real industry self-match', () => {
