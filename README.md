@@ -38,6 +38,31 @@ npm run build
 `dist/` is a static bundle — no server, no database, no API keys, and it can
 be hosted anywhere that serves static files.
 
+## What the results screen does beyond ranking
+
+- **Response-quality check.** Straight-lining, contradictory answers on
+  reverse-keyed pairs, and a median under two seconds per statement each
+  raise a flag. The ranking is still shown, under a "treat this run as a
+  draft" banner. See `src/engine/quality.js` for the thresholds.
+- **Precision per facet.** Interests rest on five statements, values on three,
+  aptitudes and context on two. The readout labels each, and marks two-item
+  facets with `~` so a 48 and a 52 are not read as different.
+- **Comparison with your previous run.** Completed runs are kept in
+  `localStorage` (`lodestar.v1.runs`, last ten). The next run shows which
+  facets held within ten points and which moved.
+- **What would change this.** For the three industries just under the
+  shortlist, the single facet that, shifted fifteen points, would help each
+  most, and whether that would have been enough.
+- **Occupations inside each field.** Each card lists the O*NET occupations
+  its numbers are averaged from. With per-occupation vectors generated (see
+  below), they are ranked against the profile on the seventeen measured
+  facets.
+- **Provenance drawer.** Every card can show where each of its 24 numbers
+  came from: the O*NET element for the seventeen derived facets, the question
+  the author answered for the seven authored ones, and how many raters.
+- **Export.** Copy the results as Markdown, or print to paper or PDF with an
+  ink-on-bone print stylesheet.
+
 ## Regenerating the industry vectors
 
 `src/data/industry-vectors.json` is checked in, so the app builds without
@@ -46,6 +71,25 @@ needing the O*NET source data. To regenerate it — for example after editing
 13 MB O*NET 30.3 bulk database is not checked in (it isn't ours to
 redistribute in raw form), so you fetch it once locally, then run
 `node data-build/derive-industry-vectors.mjs`.
+
+## Ranking occupations inside an industry
+
+`src/data/occupations.json` ships as a roster only. To rank occupations
+against a profile, fetch the O*NET release as above, then:
+
+```bash
+node data-build/derive-occupation-vectors.mjs
+```
+
+The cards switch from a plain list to a ranked one automatically.
+
+## Adding a second rater for the authored Values
+
+The six Values facets per industry are one person's editorial estimate. A
+second person can rate them blind against `data-build/values-rubric.md` and
+write their numbers into `src/data/authored-values-rater2.json`. Each number
+then becomes the mean of the two raters, and the provenance drawer reports
+how far apart they were.
 
 ## Changing the dimension weighting
 
