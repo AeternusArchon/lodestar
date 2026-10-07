@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import Results from '../src/components/Results.jsx'
 import { QUESTIONS } from '../src/data/questions.js'
 import { FACETS } from '../src/data/facets.js'
@@ -174,5 +174,100 @@ describe('facet blurb polarity (fix round 1, Finding 1)', () => {
     // score, not with each other's history of being wrong the same way.
     expect(document.body.textContent).not.toContain(autonomy.blurb)
     expect(document.body.textContent).toContain(autonomy.blurbLow)
+  })
+})
+
+describe('<Results> additions', () => {
+  // Every item answered in its keyed direction at full strength: no
+  // straight-lining by share (values split 5/1), no contradictions.
+  const consistent = Object.fromEntries(QUESTIONS.map(q => [q.id, q.dir === 1 ? 5 : 1]))
+  const slow = Object.fromEntries(QUESTIONS.map(q => [q.id, 8000]))
+  const fast = Object.fromEntries(QUESTIONS.map(q => [q.id, 900]))
+
+  it('shows the draft banner on a rushed run and not on an unhurried one', () => {
+    const { unmount } = render(<Results answers={consistent} timings={fast} onRestart={() => {}} />)
+    expect(document.body.textContent).toMatch(/Treat this run as a draft/)
+    expect(document.body.textContent).toMatch(/Under two seconds/)
+    unmount()
+    render(<Results answers={consistent} timings={slow} onRestart={() => {}} />)
+    expect(document.body.textContent).not.toMatch(/Treat this run as a draft/)
+  })
+
+  it('flags a straight-lined run even when the profile is not wholly flat', () => {
+    // 4 on everything except one item per facet: share well over 0.7, and the
+    // profile still varies because reverse-keyed items flip.
+    const answers = Object.fromEntries(QUESTIONS.map(q => [q.id, 4]))
+    render(<Results answers={answers} onRestart={() => {}} />)
+    expect(document.body.textContent).toMatch(/Treat this run as a draft/)
+    expect(document.body.textContent).toMatch(/of your answers were the same number/)
+  })
+
+  it('names the industries that just missed and the facet that would help each most', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const section = screen.getByRole('region', { name: /just missed/i })
+    expect(section.textContent).toMatch(/What would change this/)
+    expect(section.querySelectorAll('li').length).toBe(3)
+    expect(section.textContent).toMatch(/Most helped by scoring (higher|lower) on/)
+    expect(section.textContent).toMatch(/points short/)
+  })
+
+  it('does not show near-misses on a wholly flat profile', () => {
+    render(<Results answers={uniform} onRestart={() => {}} />)
+    expect(screen.queryByRole('region', { name: /just missed/i })).toBeNull()
+  })
+
+  it('has an on-page nav whose anchors all resolve', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const nav = screen.getByRole('navigation', { name: /on this page/i })
+    const hrefs = [...nav.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    expect(hrefs.length).toBeGreaterThanOrEqual(6)
+    for (const href of hrefs) {
+      expect(document.querySelector(href), href).not.toBeNull()
+    }
+  })
+
+  it('marks two-statement facets as rough estimates in the readout', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const roughRows = screen.getAllByText(/Rough — two statements/)
+    expect(roughRows).toHaveLength(12) // six aptitudes + six context facets
+    expect(screen.getAllByText(/Firm — five statements/)).toHaveLength(6)
+    expect(screen.getAllByText(/Fair — three statements/)).toHaveLength(6)
+  })
+
+  it('gives every card a provenance drawer and an occupations drawer', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const cards = screen.getAllByRole('article')
+    for (const card of cards) {
+      expect(card.textContent).toMatch(/Where these numbers come from/)
+      expect(card.textContent).toMatch(/Inside this field/)
+      expect(card.textContent).toMatch(/Judged by Lodestar — 7 of 24/)
+      expect(card.textContent).toMatch(/Measured from O\*NET — 17 of 24/)
+    }
+  })
+
+  it('copies the results as Markdown', async () => {
+    const writeText = vi.fn().mockResolvedValue()
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<Results answers={varied} onRestart={() => {}} />)
+    fireEvent.click(screen.getAllByRole('button', { name: /copy as text/i })[0])
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const md = writeText.mock.calls[0][0]
+    expect(md).toMatch(/^# Lodestar results/)
+    expect(md).toMatch(/## Full profile/)
+    await waitFor(() => expect(document.body.textContent).toMatch(/Copied as Markdown/))
+  })
+
+  it('calls onRecordRun once with the profile and shortlist', () => {
+    const onRecordRun = vi.fn()
+    render(<Results answers={varied} onRestart={() => {}} onRecordRun={onRecordRun} />)
+    expect(onRecordRun).toHaveBeenCalledTimes(1)
+    const run = onRecordRun.mock.calls[0][0]
+    expect(Object.keys(run.profile)).toHaveLength(24)
+    expect(run.shortlist.length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('invites a second run when there is no previous one', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    expect(document.body.textContent).toMatch(/Take this again in a few weeks/)
   })
 })

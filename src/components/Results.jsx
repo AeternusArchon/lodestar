@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import Constellation from './Constellation.jsx'
 import ProfileReadout from './ProfileReadout.jsx'
 import IndustryCard from './IndustryCard.jsx'
@@ -5,12 +6,18 @@ import { scoreAnswers } from '../engine/score.js'
 import { matchIndustries } from '../engine/match.js'
 import { summarise } from '../engine/profile.js'
 import { explainMatch } from '../engine/explain.js'
+import { assessQuality } from '../engine/quality.js'
+import { nearMisses, SHIFT } from '../engine/nearmiss.js'
+import { diffProfiles, diffShortlists } from '../engine/history.js'
+import { toMarkdown } from '../engine/format.js'
 import { FACETS } from '../data/facets.js'
 import { INDUSTRIES } from '../data/industries.js'
 import { QUESTIONS } from '../data/questions.js'
 
 const ALL_FACETS = new Set(FACETS.map(f => f.key))
 const INDUSTRY_BY_KEY = Object.fromEntries(INDUSTRIES.map(i => [i.key, i]))
+const INDUSTRY_NAMES = Object.fromEntries(INDUSTRIES.map(i => [i.key, i.name]))
+const FACET_BY_KEY = Object.fromEntries(FACETS.map(f => [f.key, f]))
 
 // O*NET requires this notice verbatim wherever their data is used — see
 // https://www.onetcenter.org/license_forproducts.html. Do not paraphrase it.
@@ -53,6 +60,51 @@ function joinList(items) {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
 }
 
+const round = n => Math.round(n)
+const signed = n => (n > 0 ? `+${round(n)}` : `${round(n)}`)
+
+const BUTTON = 'font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60'
+
+/**
+ * Copy-as-Markdown and print. The clipboard API is async and can be refused
+ * (insecure context, permission denied, or jsdom); the fallback is a hidden
+ * textarea and execCommand, and if that fails too the button says so rather
+ * than silently doing nothing. Status is announced via aria-live.
+ */
+function ExportControls({ markdown }) {
+  const [status, setStatus] = useState('')
+
+  async function copy() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(markdown)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = markdown
+        ta.setAttribute('readonly', '')
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        const ok = document.execCommand && document.execCommand('copy')
+        document.body.removeChild(ta)
+        if (!ok) throw new Error('execCommand failed')
+      }
+      setStatus('Copied as Markdown.')
+    } catch {
+      setStatus('Could not reach the clipboard — use Print, or select the page and copy.')
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 print:hidden">
+      <button type="button" onClick={copy} className={BUTTON}>Copy as text</button>
+      <button type="button" onClick={() => window.print()} className={BUTTON}>Print or save as PDF</button>
+      <p role="status" aria-live="polite" className="font-mono text-xs text-haze">{status}</p>
+    </div>
+  )
+}
+
 /**
  * The results screen: what a person gets back after seventy-two questions.
  * Computes once, in a fixed order — score, then match, then summarise — and
@@ -64,8 +116,13 @@ function joinList(items) {
  * and the six Values facets per industry are Lodestar's own editorial
  * estimate rather than measured data, which is why every reason built on one
  * says so inline (see IndustryCard).
+ *
+ * Three more were added later and sit in the same spirit: a response-quality
+ * banner when the answers look unread; a comparison against the previous run
+ * so stability, not a single snapshot, carries the weight; and a "what would
+ * change this" section for the industries that just missed.
  */
-export default function Results({ answers, onRestart }) {
+export default function Results({ answers, timings = {}, previous = null, onRecordRun, onRestart }) {
   // Defensive second gate. App.jsx is responsible for never transitioning to
   // this stage with an incomplete answer set — scoreAnswers() throws on one,
   // and Task 11's arrow-key navigation can reach the last item without
@@ -97,17 +154,41 @@ export default function Results({ answers, onRestart }) {
     )
   }
 
-  const profile = scoreAnswers(answers)
-  const ranked = matchIndustries(profile)
-  const summary = summarise(profile, ranked)
+  return <CompleteResults answers={answers} timings={timings} previous={previous} onRecordRun={onRecordRun} onRestart={onRestart} />
+}
 
-  const cards = summary.shortlist.map(entry => {
-    const industry = INDUSTRY_BY_KEY[entry.key]
-    const match = { ...industry, fit: entry.fit }
-    const reasons = explainMatch(entry, profile, answers, { flat: summary.flat })
-    const group = groupFor(summary.groups, entry.key)
-    return { key: entry.key, match, reasons, rank: group.rank, tied: group.members.length > 1 }
-  })
+function CompleteResults({ answers, timings, previous, onRecordRun, onRestart }) {
+  const computed = useMemo(() => {
+    const profile = scoreAnswers(answers)
+    const ranked = matchIndustries(profile)
+    const summary = summarise(profile, ranked)
+    const cards = summary.shortlist.map(entry => {
+      const industry = INDUSTRY_BY_KEY[entry.key]
+      const match = { ...industry, fit: entry.fit }
+      const reasons = explainMatch(entry, profile, answers, { flat: summary.flat })
+      const group = groupFor(summary.groups, entry.key)
+      return { key: entry.key, match, reasons, rank: group.rank, tied: group.members.length > 1 }
+    })
+    const quality = assessQuality(answers, timings)
+    const misses = summary.whollyFlat ? [] : nearMisses(profile, ranked, summary.shortlist)
+    const markdown = toMarkdown({ profile, summary, cards, flags: quality.flags, industryNames: INDUSTRY_NAMES })
+    return { profile, ranked, summary, cards, quality, misses, markdown }
+  }, [answers, timings])
+
+  const { profile, summary, cards, quality, misses, markdown } = computed
+
+  // Record this completion once the numbers exist. App makes this idempotent
+  // on the run id, so StrictMode double-effects and reloads are harmless.
+  useEffect(() => {
+    if (onRecordRun) {
+      onRecordRun({ profile, shortlist: summary.shortlist.map(e => e.key) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const comparison = previous
+    ? { facets: diffProfiles(profile, previous.profile), shortlist: diffShortlists(summary.shortlist.map(e => e.key), previous.shortlist) }
+    : null
 
   return (
     <main className="min-h-screen bg-ink text-bone flex flex-col items-center pt-6 sm:pt-8">
@@ -146,6 +227,26 @@ export default function Results({ answers, onRestart }) {
             follows is a shortlist to investigate, built from how you answered —
             not a measurement of what you're capable of.
           </p>
+
+          {/*
+            Anchor nav. The page is long — seven cards, each with two
+            drawers, then twenty-four facet rows — and on a phone the full
+            profile is a dozen screens down. Plain in-page links; the targets
+            carry scroll-mt so a heading isn't hidden under the top edge.
+          */}
+          <nav aria-label="On this page" className="print:hidden font-mono text-xs uppercase tracking-[0.2em] text-slate flex flex-wrap gap-x-5 gap-y-2 pt-2">
+            {!summary.whollyFlat && <a href="#shortlist" className="hover:text-brass">Shortlist</a>}
+            {misses.length > 0 && <a href="#near-misses" className="hover:text-brass">Just missed</a>}
+            {comparison && <a href="#comparison" className="hover:text-brass">Versus last run</a>}
+            <a href="#profile" className="hover:text-brass">Full profile</a>
+            <a href="#profile-interests" className="hover:text-brass">Interests</a>
+            <a href="#profile-values" className="hover:text-brass">Values</a>
+            <a href="#profile-aptitudes" className="hover:text-brass">Aptitudes</a>
+            <a href="#profile-context" className="hover:text-brass">Context</a>
+          </nav>
+
+          <ExportControls markdown={markdown} />
+
           <p className="font-mono text-sm text-haze leading-relaxed">
             One note on the numbers: seven of the twenty-four facets aren't
             measured data for any industry below. The six Values facets
@@ -158,9 +259,36 @@ export default function Results({ answers, onRestart }) {
             instead, which is a different thing. So we estimated it. Those
             seven figures per industry are Lodestar's own editorial estimate —
             our judgment, plainly labelled, not data dressed up as fact.
-            Anywhere that estimate drives a reason, it says so.
+            Anywhere that estimate drives a reason, it says so, and every card
+            has a drawer showing where each of its twenty-four numbers came from.
           </p>
         </div>
+
+        {/*
+          Response-quality banner. Not a rejection: the ranking below is still
+          computed and shown. But a shortlist built from seventy-two 3s, or
+          from a run finished in ninety seconds, should not be read as the
+          other kind, and the only honest place to say that is above it.
+        */}
+        {quality.flags.length > 0 && (
+          <section
+            aria-label="About how these answers were given"
+            className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-rust/70 pl-4"
+          >
+            <h2 className="font-display text-xl text-bone">Treat this run as a draft</h2>
+            <p className="font-body text-base leading-relaxed text-haze">
+              The pattern of these answers usually means the statements were
+              not being weighed one at a time. The results below are still
+              computed from them, but they are a draft to redo when you have
+              twelve unhurried minutes, not a snapshot to act on.
+            </p>
+            <ul className="flex flex-col gap-1.5 pl-4 list-disc marker:text-rust">
+              {quality.flags.map(f => (
+                <li key={f.code} className="font-body text-base leading-relaxed text-bone">{f.message}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {!summary.whollyFlat && summary.flat.length > 0 && (
           <div className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
@@ -187,7 +315,7 @@ export default function Results({ answers, onRestart }) {
             </p>
           </div>
         ) : (
-          <div className="w-full max-w-2xl flex flex-col gap-8">
+          <div id="shortlist" className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
             {cards.map(card => (
               <IndustryCard
                 key={card.key}
@@ -195,6 +323,7 @@ export default function Results({ answers, onRestart }) {
                 reasons={card.reasons}
                 rank={card.rank}
                 tied={card.tied}
+                profile={profile}
               />
             ))}
 
@@ -216,6 +345,94 @@ export default function Results({ answers, onRestart }) {
               </p>
             )}
           </div>
+        )}
+
+        {/*
+          What would change this. The industries just under the shortlist,
+          each with the single facet that, moved SHIFT points, would help it
+          most — and whether that would have been enough. The shift is a fixed
+          size on purpose (see engine/nearmiss.js): it is a question to ask
+          yourself, not a target to hit.
+        */}
+        {misses.length > 0 && (
+          <section id="near-misses" aria-label="Industries that just missed" className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
+            <h2 className="font-display text-2xl text-bone">What would change this</h2>
+            <p className="font-body text-base leading-relaxed text-haze">
+              The next {misses.length} fields below the line, and for each the one
+              facet that would have helped it most if your answers had put you{' '}
+              {SHIFT} points further along it. If one of these describes a
+              change of self-view you recognise, the field belongs on the list.
+            </p>
+            <ul className="flex flex-col gap-4">
+              {misses.map(m => {
+                const facet = FACET_BY_KEY[m.shift.facet]
+                const direction = m.shift.direction > 0 ? 'higher' : 'lower'
+                return (
+                  <li key={m.key} className="flex flex-col gap-1 border-l-2 border-haze/30 pl-4">
+                    <p className="font-display text-lg text-bone">
+                      {m.name}{' '}
+                      <span className="font-mono text-sm text-haze">{round(m.fit)}% — {round(m.gap)} points short</span>
+                    </p>
+                    <p className="font-body text-base leading-relaxed text-haze">
+                      Most helped by scoring {direction} on{' '}
+                      <span className="text-bone">{facet.label}</span>{' '}
+                      ({round(m.shift.from)} → {round(m.shift.to)}): fit would be {round(m.shift.newFit)}%,{' '}
+                      {m.reaches ? 'enough to join the shortlist.' : 'still short of the shortlist on its own.'}
+                    </p>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
+
+        {/*
+          Versus the previous run. The single most honest thing a self-report
+          can do is show whether it says the same thing twice. Facets that
+          moved under ten points are called stable and are the ones to trust;
+          the biggest movers are named so the reader knows which numbers to
+          discount, however confidently either run printed them.
+        */}
+        {comparison && (
+          <section id="comparison" aria-label="Compared with your previous run" className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
+            <h2 className="font-display text-2xl text-bone">Versus your run on {previous.date}</h2>
+            <p className="font-body text-base leading-relaxed text-haze">
+              {comparison.facets.stable.length} of 24 facets landed within ten
+              points of last time — those are the ones to trust.{' '}
+              {comparison.facets.moved.length === 0
+                ? 'Nothing moved by more than that.'
+                : `${comparison.facets.moved.length} moved by ten or more; the biggest are below, and they are the numbers to read with a grain of salt.`}
+            </p>
+            {comparison.facets.moved.length > 0 && (
+              <ul className="flex flex-col gap-1.5">
+                {comparison.facets.moved.slice(0, 6).map(d => (
+                  <li key={d.key} className="flex items-baseline justify-between gap-4 font-body text-base text-bone">
+                    <span>{d.label}</span>
+                    <span className="font-mono text-sm text-haze">{round(d.from)} → {round(d.to)} <span className={Math.abs(d.delta) >= 20 ? 'text-rust' : ''}>({signed(d.delta)})</span></span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="font-body text-base leading-relaxed text-haze">
+              {comparison.shortlist.kept.length > 0 && (
+                <>On the shortlist both times: {joinList(comparison.shortlist.kept.map(k => INDUSTRY_NAMES[k]))}. </>
+              )}
+              {comparison.shortlist.added.length > 0 && (
+                <>New this time: {joinList(comparison.shortlist.added.map(k => INDUSTRY_NAMES[k]))}. </>
+              )}
+              {comparison.shortlist.dropped.length > 0 && (
+                <>Dropped off: {joinList(comparison.shortlist.dropped.map(k => INDUSTRY_NAMES[k]))}.</>
+              )}
+            </p>
+          </section>
+        )}
+
+        {!comparison && (
+          <p className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
+            One run is a snapshot. Take this again in a few weeks and this
+            page will show you which facets held steady — those are the ones
+            worth trusting — and which moved.
+          </p>
         )}
 
         {/*
@@ -251,19 +468,18 @@ export default function Results({ answers, onRestart }) {
           </section>
         )}
 
-        <ProfileReadout profile={profile} />
+        <ProfileReadout profile={profile} answers={answers} />
 
         <footer className="w-full max-w-2xl font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
           <p>{ONET_ATTRIBUTION}</p>
         </footer>
 
-        <button
-          type="button"
-          onClick={onRestart}
-          className="font-display text-base px-6 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60"
-        >
-          Start over
-        </button>
+        <div className="flex flex-wrap gap-3 print:hidden">
+          <ExportControls markdown={markdown} />
+          <button type="button" onClick={onRestart} className={BUTTON}>
+            Start over
+          </button>
+        </div>
       </div>
     </main>
   )

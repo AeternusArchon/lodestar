@@ -21,3 +21,22 @@ body { background: var(--ink); color: var(--bone); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Print: ink on bone instead of bone on ink, so a results page is legible on
+ * paper and as a saved PDF without draining a cartridge. Same six tokens,
+ * swapped. Controls that only make sense on screen carry Tailwind's
+ * `print:hidden`; the two drawers on each card are forced open so the
+ * provenance and occupation lists make it onto the page.
+ */
+@media print {
+  body, .bg-ink { background: var(--bone) !important; color: var(--ink) !important; }
+  .text-bone { color: var(--ink) !important; }
+  .text-brass { color: var(--ink) !important; }
+  .text-haze, .text-slate { color: var(--ink) !important; opacity: 0.75; }
+  .border-haze\/25, .border-haze\/20, .border-haze\/30, .border-haze\/40 { border-color: var(--haze) !important; }
+  details > *:not(summary) { display: block !important; }
+  details > summary { list-style: none; }
+  article { break-inside: avoid; }
+  a[href^="#"] { text-decoration: none; }
+}
