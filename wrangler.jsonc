@@ -1,0 +1,21 @@
+{
+  // Lodestar deploys as a Cloudflare Worker that serves static assets and
+  // nothing else: no Worker script, no bindings, no runtime. `npm run build`
+  // writes dist/, and this file tells Wrangler (or Workers Builds, on a push
+  // to main) to upload that folder. Spec §8 named `wrangler pages deploy`;
+  // Cloudflare has since moved static sites onto Workers, so this is the
+  // same deployment on the current platform.
+  //
+  // The Worker's name in the Cloudflare dashboard must match `name` here or
+  // a connected-repository build fails.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lodestar",
+  "compatibility_date": "2026-10-07",
+  "assets": {
+    "directory": "./dist",
+    // Every path serves index.html: the app is a single page and keeps its
+    // state in localStorage, so a deep link or a typo should land on the
+    // app, not a 404.
+    "not_found_handling": "single-page-application"
+  }
+}
