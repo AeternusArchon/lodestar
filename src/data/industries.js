@@ -1,5 +1,7 @@
 import derived from './industry-vectors.json'
+import rater2 from './authored-values-rater2.json'
 import { facetsByDimension } from './facets.js'
+import { DERIVED_SOURCE, AUTHORED_RATIONALE } from './provenance.js'
 
 const VALUE_KEYS = facetsByDimension('values').map(f => f.key)
 
@@ -94,32 +96,32 @@ const AUTHORED_VALUES = {
  */
 const AUTHORED_SCHEDULE_FLEX = {
   // Highest: the work is portable, or the calendar is yours to fill.
-  'technology-software':                   88,  // remote-default, async, judged on output rather than attendance
-  'arts-design-entertainment':             85,  // freelance and studio work; call times and tour dates pull it back from 100
-  'real-estate-property':                  72,  // no office and your own showings — but clients are free evenings and weekends
-  'marketing-advertising-media':           68,  // deadline-driven and widely hybrid; launches and shoots still bind
-  'personal-services-wellness':            60,  // you own the book, and it fills at six in the morning and on Saturdays
+  'technology-software':                   [88, "remote-default, async, judged on output rather than attendance"],
+  'arts-design-entertainment':             [85, "freelance and studio work; call times and tour dates pull it back from 100"],
+  'real-estate-property':                  [72, "no office and your own showings — but clients are free evenings and weekends"],
+  'marketing-advertising-media':           [68, "deadline-driven and widely hybrid; launches and shoots still bind"],
+  'personal-services-wellness':            [60, "you own the book, and it fills at six in the morning and on Saturdays"],
 
   // Middle: real latitude, bounded by a site, a season, or someone else's clock.
-  'business-consulting-admin':             50,  // desk work that travels; consulting runs on the client's calendar
-  'law-legal-services':                    50,  // draft from anywhere at midnight, but court dates and filings do not move
-  'engineering':                           48,  // design work travels; labs, plants and site visits do not
-  'science-research':                      48,  // nobody assigns your hours — the experiment does, and the bench is where it is
-  'finance-banking-insurance':             45,  // analysts and underwriters go hybrid; market hours and branch hours do not
-  'government-public-admin':               42,  // rigid grade and chain of command, but flex-time and telework are real terms here
-  'social-services-counseling':            42,  // caseloads, court dates and home visits set the day; private practice escapes it
-  'construction-skilled-trades':           35,  // on site at six-thirty, finished when the light goes; contractors pick the jobs
+  'business-consulting-admin':             [50, "desk work that travels; consulting runs on the client's calendar"],
+  'law-legal-services':                    [50, "draft from anywhere at midnight, but court dates and filings do not move"],
+  'engineering':                           [48, "design work travels; labs, plants and site visits do not"],
+  'science-research':                      [48, "nobody assigns your hours — the experiment does, and the bench is where it is"],
+  'finance-banking-insurance':             [45, "analysts and underwriters go hybrid; market hours and branch hours do not"],
+  'government-public-admin':               [42, "rigid grade and chain of command, but flex-time and telework are real terms here"],
+  'social-services-counseling':            [42, "caseloads, court dates and home visits set the day; private practice escapes it"],
+  'construction-skilled-trades':           [35, "on site at six-thirty, finished when the light goes; contractors pick the jobs"],
 
   // Low: a schedule you are handed, at a place you have to be.
-  'energy-utilities-environment':          30,  // plant shifts, dispatched crews, on call when the lights go out
-  'transportation-logistics-supply-chain': 30,  // dispatch windows and delivery times; owner-operators choose their loads
-  'agriculture-natural-resources':         28,  // no supervisor sets your hours, but planting, weather and livestock do
-  'retail-sales':                          22,  // the store's hours are your hours, posted weekly, rarely yours to pick
-  'education-teaching':                    20,  // the bell owns the day and the classroom owns the place
-  'healthcare-medicine':                   12,  // rotating shifts, nights, on call, and the patient is in the building
-  'manufacturing-production':              10,  // the line runs on a shift and you are standing on it
-  'hospitality-travel-food':               10,  // nights, weekends and holidays, on premises, by definition
-  'public-safety-protective':               8,  // rotating shifts, mandatory overtime, called in on holidays
+  'energy-utilities-environment':          [30, "plant shifts, dispatched crews, on call when the lights go out"],
+  'transportation-logistics-supply-chain': [30, "dispatch windows and delivery times; owner-operators choose their loads"],
+  'agriculture-natural-resources':         [28, "no supervisor sets your hours, but planting, weather and livestock do"],
+  'retail-sales':                          [22, "the store's hours are your hours, posted weekly, rarely yours to pick"],
+  'education-teaching':                    [20, "the bell owns the day and the classroom owns the place"],
+  'healthcare-medicine':                   [12, "rotating shifts, nights, on call, and the patient is in the building"],
+  'manufacturing-production':              [10, "the line runs on a shift and you are standing on it"],
+  'hospitality-travel-food':               [10, "nights, weekends and holidays, on premises, by definition"],
+  'public-safety-protective':               [8, "rotating shifts, mandatory overtime, called in on holidays"],
 }
 
 /**
@@ -352,13 +354,50 @@ const META = {
   },
 }
 
-export const INDUSTRIES = Object.keys(META).map(key => ({
-  key,
-  ...META[key],
-  vector: {
-    ...derived.industries[key],
-    ...AUTHORED_VALUES[key],
-    scheduleFlex: AUTHORED_SCHEDULE_FLEX[key],
-  },
-  authoredFacets: AUTHORED_KEYS,
-}))
+/**
+ * Blend the first rater's Values with a second rater's, when one has rated
+ * that industry (src/data/authored-values-rater2.json). The final number is
+ * the plain mean; the per-facet record keeps both raters and their gap so the
+ * UI can say "two raters, 18 points apart" rather than present an average as
+ * if it were agreement. An industry with no second rating keeps the single
+ * figure and says "one rater". Nothing here is tuned: the second rater's
+ * numbers are taken as given, which is the point of having them.
+ */
+function blendValues(key) {
+  const first = AUTHORED_VALUES[key]
+  const second = rater2.values?.[key] ?? null
+  const final = {}
+  const record = {}
+  for (const facet of VALUE_KEYS) {
+    const a = first[facet]
+    const b = second && Number.isFinite(second[facet]) ? second[facet] : null
+    final[facet] = b === null ? a : (a + b) / 2
+    record[facet] = { kind: 'authored', raters: b === null ? 1 : 2, rater1: a, rater2: b,
+      gap: b === null ? null : Math.abs(a - b), rationale: AUTHORED_RATIONALE[facet] }
+  }
+  return { final, record }
+}
+
+export const INDUSTRIES = Object.keys(META).map(key => {
+  const [scheduleFlex, scheduleNote] = AUTHORED_SCHEDULE_FLEX[key]
+  const values = blendValues(key)
+  const provenance = {}
+  for (const [facet, src] of Object.entries(DERIVED_SOURCE)) {
+    provenance[facet] = { kind: 'derived', ...src }
+  }
+  Object.assign(provenance, values.record)
+  provenance.scheduleFlex = { kind: 'authored', raters: 1, rater1: scheduleFlex, rater2: null, gap: null,
+    rationale: AUTHORED_RATIONALE.scheduleFlex, note: scheduleNote }
+
+  return {
+    key,
+    ...META[key],
+    vector: {
+      ...derived.industries[key],
+      ...values.final,
+      scheduleFlex,
+    },
+    authoredFacets: AUTHORED_KEYS,
+    provenance,
+  }
+})

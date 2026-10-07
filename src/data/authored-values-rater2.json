@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "rater": null,
+    "date": null,
+    "rubric": "data-build/values-rubric.md",
+    "note": "A second, independent rating of the six Values facets per industry. Leave `values` empty until a second person has rated BLIND — without seeing src/data/industries.js — against the rubric. When present, each industry's number becomes the mean of the two raters and the UI reports how far they differed. Industries not listed here keep the single-rater figure."
+  },
+  "values": {}
+}
