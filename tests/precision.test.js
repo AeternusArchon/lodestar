@@ -39,6 +39,21 @@ describe('facetPrecision', () => {
     expect(p[facet.key].disagree).toBe(true)
   })
 
+  it('needs a wider spread to call a five-item facet in disagreement', () => {
+    const facet = facetsByDimension('interests')[0]
+    const items = QUESTIONS.filter(q => q.facet === facet.key)
+    // signed values 3,3,3,3,5: spread 2, ordinary variation on five items
+    const answers = { ...consistent }
+    items.forEach((q, i) => { answers[q.id] = q.dir === 1 ? (i === 0 ? 5 : 3) : (i === 0 ? 1 : 3) })
+    expect(facetPrecision(answers)[facet.key].spread).toBe(2)
+    expect(facetPrecision(answers)[facet.key].disagree).toBe(false)
+    // widen to spread 3
+    const q1 = items[1]
+    answers[q1.id] = q1.dir === 1 ? 2 : 4
+    expect(facetPrecision(answers)[facet.key].spread).toBe(3)
+    expect(facetPrecision(answers)[facet.key].disagree).toBe(true)
+  })
+
   it('works on a partial answer set', () => {
     const partial = { [QUESTIONS[0].id]: 4 }
     const p = facetPrecision(partial)

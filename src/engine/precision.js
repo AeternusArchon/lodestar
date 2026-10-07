@@ -20,8 +20,16 @@ import { FACETS } from '../data/facets.js'
  *   rough  2 items — the aptitudes and context
  */
 export const LEVEL_BY_ITEMS = { 5: 'firm', 3: 'fair', 2: 'rough' }
-/** Signed-answer spread (on the 1-5 scale) at or above which items disagree. */
+/**
+ * Signed-answer spread (on the 1-5 scale) at or above which a facet's items
+ * are said to disagree. Two items two steps apart (a 4 and a 2, say) is a
+ * real disagreement when those are the only two items. Across five items a
+ * spread of two is ordinary variation — most careful people land a 3 and a
+ * 5 somewhere in five statements — so the bar for a five-item facet is a
+ * spread of three or more.
+ */
 export const DISAGREE_SPREAD = 2
+export const DISAGREE_SPREAD_MANY = 3
 
 function signed(q, answers) {
   const r = answers[q.id]
@@ -44,7 +52,7 @@ export function facetPrecision(answers) {
       answered: items.length,
       level: LEVEL_BY_ITEMS[total] ?? (total >= 5 ? 'firm' : total >= 3 ? 'fair' : 'rough'),
       spread,
-      disagree: spread >= DISAGREE_SPREAD,
+      disagree: spread >= (total <= 2 ? DISAGREE_SPREAD : DISAGREE_SPREAD_MANY),
     }
   }
   return out

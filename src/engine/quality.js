@@ -123,7 +123,9 @@ export function assessQuality(answers, timings = {}) {
   if (speed && speed.medianMs < RUSHED_MEDIAN_MS) {
     flags.push({
       code: 'rushed',
-      message: `Your typical statement got ${(speed.medianMs / 1000).toFixed(1)} seconds. Under two seconds is not long enough to read most of them.`,
+      message: speed.medianMs < 1000
+        ? 'Your typical statement got under a second. That is not long enough to read most of them.'
+        : `Your typical statement got ${(speed.medianMs / 1000).toFixed(1)} seconds. Under two seconds is not long enough to read most of them.`,
     })
   }
 

@@ -187,7 +187,7 @@ describe('<Results> additions', () => {
   it('shows the draft banner on a rushed run and not on an unhurried one', () => {
     const { unmount } = render(<Results answers={consistent} timings={fast} onRestart={() => {}} />)
     expect(document.body.textContent).toMatch(/Treat this run as a draft/)
-    expect(document.body.textContent).toMatch(/Under two seconds/)
+    expect(document.body.textContent).toMatch(/under a second/)
     unmount()
     render(<Results answers={consistent} timings={slow} onRestart={() => {}} />)
     expect(document.body.textContent).not.toMatch(/Treat this run as a draft/)
