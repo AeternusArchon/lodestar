@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Intro from './components/Intro.jsx'
 import Question from './components/Question.jsx'
 import InstrumentRail from './components/InstrumentRail.jsx'
 import Results from './components/Results.jsx'
 import { QUESTIONS } from './data/questions.js'
+import { appendRun, previousRun, sanitiseRuns } from './engine/history.js'
 
 const STORAGE_KEY = 'lodestar.v1.session'
+const RUNS_KEY = 'lodestar.v1.runs'
+/** Time on one item is capped so a tab left open overnight does not count as reading. */
+const MAX_ITEM_MS = 120_000
 const VALID_STAGES = ['intro', 'test', 'results']
 
 const QUESTION_IDS = new Set(QUESTIONS.map(q => q.id))
@@ -57,17 +61,53 @@ function loadSession() {
     // statements still need an answer" banner over a session the reader may
     // have since completed. Drop it on load; the next finish attempt that
     // needs one will set a fresh, correct one.
-    return { ...parsed, notice: null }
+    // Timings are advisory (engine/quality.js reads them) and never a reason
+    // to reject a session: a malformed map is replaced with an empty one.
+    const timings = sanitiseTimings(parsed.timings)
+    // A run id is minted when results are first reached; keep it if present so
+    // a reload does not record the same completion twice.
+    const runId = typeof parsed.runId === 'string' ? parsed.runId : null
+    // A session interrupted mid-test comes back to the intro with a resume
+    // cue ("you stopped at 34 of 72") rather than dropping the reader onto a
+    // statement with no context. The index is kept; Begin continues from it.
+    const stage = parsed.stage === 'test' ? 'intro' : parsed.stage
+    return { ...parsed, stage, timings, runId, notice: null }
   } catch {
     return null
   }
+}
+
+function sanitiseTimings(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const out = {}
+  for (const [id, ms] of Object.entries(value)) {
+    if (QUESTION_IDS.has(id) && Number.isFinite(ms) && ms >= 0) out[id] = Math.min(ms, MAX_ITEM_MS)
+  }
+  return out
+}
+
+function loadRuns() {
+  try {
+    return sanitiseRuns(JSON.parse(localStorage.getItem(RUNS_KEY) ?? '[]'))
+  } catch {
+    return []
+  }
+}
+
+function saveRuns(runs) {
+  try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs)) } catch { /* storage unavailable */ }
+}
+
+function newRunId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function saveSession(session) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(session)) } catch { /* storage unavailable */ }
 }
 
-const FRESH_SESSION = { stage: 'intro', index: 0, answers: {} }
+const FRESH_SESSION = { stage: 'intro', index: 0, answers: {}, timings: {}, runId: null }
 
 /**
  * Owns { stage, index, answers } for the whole assessment and persists it to
@@ -80,11 +120,31 @@ const FRESH_SESSION = { stage: 'intro', index: 0, answers: {} }
  */
 export default function App() {
   const [session, setSession] = useState(() => loadSession() ?? FRESH_SESSION)
-  const { stage, index, answers } = session
+  const [runs, setRuns] = useState(loadRuns)
+  const { stage, index, answers, timings = {} } = session
 
   useEffect(() => {
     saveSession(session)
   }, [session])
+
+  // When the current item was first shown. Reset whenever the item changes,
+  // so the time recorded against an answer is time spent looking at that
+  // statement, not time spent elsewhere in the test.
+  const shownAt = useRef(Date.now())
+  useEffect(() => {
+    shownAt.current = Date.now()
+  }, [stage, index])
+
+  /**
+   * Time spent on the item at the moment it is answered. Only the FIRST
+   * answer to an item is timed: that is the reading, and a later change of
+   * mind after going Back says nothing about whether the statement was read.
+   */
+  function timingFor(id, current) {
+    if (current[id] !== undefined) return current
+    const ms = Math.min(Math.max(0, Date.now() - shownAt.current), MAX_ITEM_MS)
+    return { ...current, [id]: ms }
+  }
 
   // 1-5 answers the current item and advances; ArrowLeft/ArrowRight navigate
   // without recording an answer. Only bound while a question is on screen.
@@ -145,7 +205,12 @@ export default function App() {
   // reviewable step rather than something that already happened the instant
   // an option was picked.
   function recordAnswer(id, value) {
-    setSession(s => ({ ...s, answers: { ...s.answers, [id]: value }, notice: null }))
+    setSession(s => ({
+      ...s,
+      answers: { ...s.answers, [id]: value },
+      timings: timingFor(id, s.timings ?? {}),
+      notice: null,
+    }))
   }
 
   // Gate for the 'test' -> 'results' transition. scoreAnswers() (Task 8)
@@ -160,7 +225,9 @@ export default function App() {
   // a dead end.
   function finishOrRedirect(s, answers) {
     const missingIndex = QUESTIONS.findIndex(q => answers[q.id] === undefined)
-    if (missingIndex === -1) return { ...s, answers, stage: 'results', notice: null }
+    if (missingIndex === -1) {
+      return { ...s, answers, stage: 'results', runId: s.runId ?? newRunId(), notice: null }
+    }
 
     const missingCount = QUESTIONS.length - QUESTIONS.filter(q => answers[q.id] !== undefined).length
     const notice = missingCount === 1
@@ -185,21 +252,47 @@ export default function App() {
   function answerAndAdvance(id, value) {
     setSession(s => {
       const nextAnswers = { ...s.answers, [id]: value }
-      if (s.index < QUESTIONS.length - 1) return { ...s, answers: nextAnswers, index: s.index + 1, notice: null }
-      return finishOrRedirect(s, nextAnswers)
+      const nextTimings = timingFor(id, s.timings ?? {})
+      if (s.index < QUESTIONS.length - 1) {
+        return { ...s, answers: nextAnswers, timings: nextTimings, index: s.index + 1, notice: null }
+      }
+      return finishOrRedirect({ ...s, timings: nextTimings }, nextAnswers)
     })
   }
 
   function restart() {
-    setSession({ ...FRESH_SESSION, answers: {} })
+    setSession({ ...FRESH_SESSION, answers: {}, timings: {} })
+  }
+
+  /**
+   * Called by Results once it has a profile and a shortlist. Idempotent on
+   * runId, so re-rendering or reloading the results screen never adds a
+   * second entry for the same completion.
+   */
+  function recordRun(run) {
+    setRuns(current => {
+      const next = appendRun(current, { ...run, id: session.runId, date: new Date().toISOString().slice(0, 10) })
+      saveRuns(next)
+      return next
+    })
   }
 
   if (stage === 'intro') {
-    return <Intro onStart={begin} />
+    const answered = QUESTIONS.filter(q => answers[q.id] !== undefined).length
+    const resume = answered > 0 ? { index, answered, total: QUESTIONS.length } : null
+    return <Intro onStart={begin} onRestart={restart} resume={resume} />
   }
 
   if (stage === 'results') {
-    return <Results answers={answers} onRestart={restart} />
+    return (
+      <Results
+        answers={answers}
+        timings={timings}
+        previous={previousRun(runs, session.runId)}
+        onRecordRun={recordRun}
+        onRestart={restart}
+      />
+    )
   }
 
   const item = QUESTIONS[index]
@@ -209,7 +302,7 @@ export default function App() {
 
   return (
     <main className="min-h-screen flex flex-col bg-ink text-bone px-4 sm:px-6 py-6 gap-6">
-      <InstrumentRail answers={answers} index={index} total={QUESTIONS.length} />
+      <InstrumentRail answers={answers} timings={timings} index={index} total={QUESTIONS.length} />
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
         {session.notice && (
           <p role="status" className="w-full max-w-2xl font-mono text-sm text-rust text-center">

@@ -42,11 +42,45 @@ describe('assessment flow', () => {
     expect(screen.getByRole('radio', { name: /4/ }).checked).toBe(true)
   })
 
-  it('restores an in-progress session from localStorage', () => {
+  // An interrupted session comes back to the intro with a resume cue rather
+  // than dropping the reader onto a statement with no context; Continue picks
+  // up at the saved index.
+  it('restores an in-progress session from localStorage behind a resume cue', () => {
     localStorage.setItem('lodestar.v1.session',
       JSON.stringify({ stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 5 } }))
     render(<App />)
+    expect(document.body.textContent).toMatch(/stopped at statement 4 of 72, with 1 answered/i)
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     expect(screen.getByText(QUESTIONS[3].text)).toBeDefined()
+  })
+
+  it('offers to start fresh from the resume cue and clears the saved answers', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 5 } }))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /start fresh/i }))
+    expect(screen.getByRole('button', { name: /begin/i })).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    expect(screen.getByText(QUESTIONS[0].text)).toBeDefined()
+    expect(screen.getAllByRole('radio').every(r => !r.checked)).toBe(true)
+  })
+
+  it('shows a time-remaining estimate on the rail', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /begin/i }))
+    expect(document.body.textContent).toMatch(/about \d+ min left/i)
+  })
+
+  it('records a timing for each first answer and ignores malformed stored timings', () => {
+    localStorage.setItem('lodestar.v1.session', JSON.stringify({
+      stage: 'test', index: 0, answers: {}, timings: { [QUESTIONS[0].id]: 'fast', bogus: 100 },
+    }))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /continue|begin/i }))
+    fireEvent.keyDown(window, { key: '4' })
+    const saved = JSON.parse(localStorage.getItem('lodestar.v1.session'))
+    expect(Object.keys(saved.timings)).toEqual([QUESTIONS[0].id])
+    expect(typeof saved.timings[QUESTIONS[0].id]).toBe('number')
   })
 
   it('survives unreadable localStorage', () => {
@@ -174,6 +208,7 @@ describe('corrupt stored answer values', () => {
     localStorage.setItem('lodestar.v1.session',
       JSON.stringify({ stage: 'test', index: 3, answers: { [QUESTIONS[0].id]: 1, [QUESTIONS[1].id]: 5 } }))
     render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     expect(screen.getByText(QUESTIONS[3].text)).toBeDefined()
   })
 })
@@ -185,6 +220,7 @@ describe('restored session hygiene and keyboard modifiers', () => {
       notice: '5 statements still need an answer. Here\'s the first one.',
     }))
     render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     expect(screen.getByText(QUESTIONS[3].text)).toBeDefined()
     expect(document.body.textContent).not.toMatch(/statements? still needs? an answer/i)
   })
@@ -200,5 +236,47 @@ describe('restored session hygiene and keyboard modifiers', () => {
     // ...and still answers on a plain digit.
     fireEvent.keyDown(window, { key: '3' })
     expect(screen.getByText(QUESTIONS[1].text)).toBeDefined()
+  })
+})
+
+describe('run history', () => {
+  const complete = Object.fromEntries(QUESTIONS.map((q, i) => [q.id, (i % 5) + 1]))
+
+  it('records a completed run once, keyed by run id, and survives a reload', () => {
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'results', index: 71, answers: complete, runId: 'run-a' }))
+    const { unmount } = render(<App />)
+    let runs = JSON.parse(localStorage.getItem('lodestar.v1.runs'))
+    expect(runs).toHaveLength(1)
+    expect(runs[0].id).toBe('run-a')
+    expect(runs[0].shortlist.length).toBeGreaterThanOrEqual(5)
+    unmount()
+    render(<App />)
+    runs = JSON.parse(localStorage.getItem('lodestar.v1.runs'))
+    expect(runs).toHaveLength(1)
+  })
+
+  it('compares against the previous run when one exists', () => {
+    const profile = Object.fromEntries(
+      ['realistic','investigative','artistic','social','enterprising','conventional',
+       'autonomy','impact','income','stability','mastery','recognition',
+       'analytical','verbal','spatial','interpersonal','organizational','creative',
+       'peopleFacing','structurePref','pace','physicality','riskTolerance','scheduleFlex'].map(k => [k, 50]))
+    localStorage.setItem('lodestar.v1.runs', JSON.stringify([
+      { id: 'run-old', date: '2026-09-01', profile, shortlist: ['technology-software'] },
+    ]))
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'results', index: 71, answers: complete, runId: 'run-new' }))
+    render(<App />)
+    expect(document.body.textContent).toMatch(/Versus your run on 2026-09-01/)
+    expect(document.body.textContent).toMatch(/of 24 facets landed within ten points/)
+  })
+
+  it('drops a malformed history instead of crashing', () => {
+    localStorage.setItem('lodestar.v1.runs', JSON.stringify([{ id: 'x', profile: null }]))
+    localStorage.setItem('lodestar.v1.session',
+      JSON.stringify({ stage: 'results', index: 71, answers: complete, runId: 'run-b' }))
+    expect(() => render(<App />)).not.toThrow()
+    expect(document.body.textContent).not.toMatch(/Versus your run/)
   })
 })
