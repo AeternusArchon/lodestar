@@ -1,3 +1,6 @@
+import { FACETS } from '../data/facets.js'
+import { rankOccupations } from '../engine/occupations.js'
+
 const ORDINAL_SUFFIX = ['th', 'st', 'nd', 'rd']
 
 function ordinal(n) {
@@ -64,7 +67,122 @@ function ReasonBlock({ reason, tone }) {
  * true, two or more cards report the same rank rather than an arbitrary order
  * inside a fit range too close to call.
  */
-export default function IndustryCard({ match, reasons, rank, tied }) {
+/**
+ * The provenance drawer. Every one of the 24 numbers this card's fit was
+ * computed from, with where it came from: an O*NET element by name for the
+ * seventeen derived facets, and the question the author answered — plus how
+ * many people answered it — for the seven authored ones. The reasoning has
+ * lived in code comments since the start; this is the first time the person
+ * being asked to trust the numbers can see it. Closed by default: it is
+ * reference material, not the result.
+ */
+function ProvenanceDrawer({ match }) {
+  const authored = FACETS.filter(f => match.provenance[f.key].kind === 'authored')
+  const derived = FACETS.filter(f => match.provenance[f.key].kind === 'derived')
+  const twoRater = authored.filter(f => match.provenance[f.key].raters === 2)
+
+  return (
+    <details className="group border-t border-haze/20 pt-4">
+      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2">
+        <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
+        Where these numbers come from
+      </summary>
+      <div className="mt-4 flex flex-col gap-5 font-body text-sm leading-relaxed text-haze">
+        <div className="flex flex-col gap-2">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-slate">
+            Judged by Lodestar — {authored.length} of 24
+            {twoRater.length > 0
+              ? `, ${twoRater.length} rated by two people`
+              : ', one rater so far'}
+          </p>
+          <ul className="flex flex-col gap-2">
+            {authored.map(f => {
+              const p = match.provenance[f.key]
+              return (
+                <li key={f.key}>
+                  <span className="text-bone">{f.label}</span>{' '}
+                  <span className="font-mono text-xs">{Math.round(match.vector[f.key])}</span>
+                  {p.raters === 2 && (
+                    <span className="font-mono text-xs"> · two raters, {Math.round(p.rater1)} and {Math.round(p.rater2)}, {Math.round(p.gap)} apart</span>
+                  )}
+                  {' — '}{p.rationale}
+                  {p.note && <> <span className="text-bone/80">For this field: {p.note}.</span></>}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-slate">
+            Measured from O*NET — {derived.length} of 24
+          </p>
+          <ul className="flex flex-col gap-1">
+            {derived.map(f => {
+              const p = match.provenance[f.key]
+              return (
+                <li key={f.key}>
+                  <span className="text-bone">{f.label}</span>{' '}
+                  <span className="font-mono text-xs">{Math.round(match.vector[f.key])}</span>
+                  {' — '}{p.what}
+                  <span className="font-mono text-xs"> ({p.els.join(', ')})</span>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="font-mono text-xs">
+            Each is the weighted mean over the occupations listed under
+            &ldquo;Inside this field&rdquo;, rescaled from O*NET&rsquo;s own scale to 0-100.
+          </p>
+        </div>
+      </div>
+    </details>
+  )
+}
+
+/**
+ * The occupation drill-down. Spec §1 keeps occupation codes out of the
+ * headline for good reason — nobody with no direction can act on 900 of
+ * them. But a person who has just read why this one industry fits can act
+ * on "and inside it, these fit you best". When the occupation vectors have
+ * been derived (see data-build/derive-occupation-vectors.mjs), the roster
+ * is ranked over the seventeen measured facets only, and says so; when they
+ * have not, the roster is listed in authoring order with no ranking claimed.
+ */
+function OccupationsDrawer({ match, profile }) {
+  const { ranked, occupations } = rankOccupations(match.key, profile)
+  if (occupations.length === 0) return null
+
+  return (
+    <details className="group border-t border-haze/20 pt-4">
+      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2">
+        <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
+        Inside this field — {occupations.length} occupations
+      </summary>
+      <div className="mt-4 flex flex-col gap-3">
+        <p className="font-body text-sm leading-relaxed text-haze">
+          {ranked
+            ? 'Ranked against your profile on the seventeen measured facets only — O*NET has no per-occupation data for the Values facets or schedule freedom, so those sit this one out.'
+            : 'The occupations whose O*NET data this industry\u2019s numbers are averaged from, heaviest first. Not ranked against you: per-occupation vectors have not been generated for this build.'}
+        </p>
+        <ol className="flex flex-col gap-1.5">
+          {occupations.map((o, i) => (
+            <li key={o.soc} className="flex items-baseline justify-between gap-4 font-body text-base text-bone">
+              <span>
+                <span className="font-mono text-xs text-haze mr-2">{ranked ? i + 1 : o.soc}</span>
+                {o.title}
+              </span>
+              {ranked && (
+                <span className="font-mono text-sm text-brass shrink-0">{round(o.fit)}%</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </details>
+  )
+}
+
+export default function IndustryCard({ match, reasons, rank, tied, profile }) {
   return (
     <article className="w-full flex flex-col gap-6 rounded-sm border border-haze/25 p-6 sm:p-8">
       <header className="flex flex-col gap-2">
@@ -103,6 +221,9 @@ export default function IndustryCard({ match, reasons, rank, tied }) {
         <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">A first move</h3>
         <p className="font-body text-base leading-relaxed text-bone">{match.firstMove}</p>
       </div>
+
+      {profile && <OccupationsDrawer match={match} profile={profile} />}
+      {match.provenance && <ProvenanceDrawer match={match} />}
     </article>
   )
 }
