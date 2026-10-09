@@ -1,6 +1,7 @@
 import Constellation from './Constellation.jsx'
 import { QUESTIONS } from '../data/questions.js'
 import { FACETS } from '../data/facets.js'
+import { useLocale } from '../i18n/index.jsx'
 
 /** Seconds per item assumed until the reader has set their own pace. */
 const DEFAULT_SECONDS_PER_ITEM = 10
@@ -61,17 +62,18 @@ function partialProfile(answers) {
  * dead. App is the only caller and always passes all three.
  */
 export default function InstrumentRail({ answers, timings = {}, index, total }) {
+  const { t } = useLocale()
   const { profile, answeredFacets } = partialProfile(answers)
   const remaining = total - Object.keys(answers).length
   const minutes = minutesLeft(timings, remaining)
 
   return (
-    <aside aria-label="Your emerging profile" className="w-full flex flex-col items-center gap-2">
+    <aside aria-label={t('rail.ariaLabel')} className="w-full flex flex-col items-center gap-2">
       <p aria-live="polite" className="font-mono text-xs uppercase tracking-[0.25em] text-haze">
-        {index + 1} / {total}
+        {t('rail.progress', { n: index + 1, total })}
         <span aria-hidden="true"> · </span>
         <span className="normal-case tracking-normal">
-          about {minutes} min left
+          {t('rail.timeLeft', { m: minutes })}
         </span>
       </p>
       <div className="w-[180px] h-[180px]">

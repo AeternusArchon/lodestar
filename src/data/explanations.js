@@ -37,7 +37,7 @@ export const EXPLANATIONS = {
   'MAS-01': 'Three years into a job, would you want the work to still be a bit beyond you — still hard — or would you rather have it fully in hand?',
   'ART-05': 'Would you rather be given a clear brief and do it well, or be handed a blank page and decide everything yourself?',
   'ITP-02': 'When someone says "it’s fine" or "sure, whatever works," do you tend to take that as true, and only later find out they meant something else? Compare yourself to the people around you.',
-  'PHY-01': 'Which leaves you more tired: eight hours sitting at a desk, or eight hours on your feet moving around?',
+  'PHY-01': 'Which leaves you more tired: eight hours sitting at a desk, or eight hours standing and moving around?',
   'REC-03': 'When work gets presented, would you rather be the one who did it quietly in the background, or the one standing up and showing it?',
   'SOC-01': 'When something goes wrong for a friend, are you the one they call?',
   'ENT-02': 'Which do you enjoy more: convincing someone to go with a plan, or actually carrying the plan out once it’s agreed?',

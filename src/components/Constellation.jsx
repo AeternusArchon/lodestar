@@ -1,4 +1,5 @@
 import { FACETS, DIMENSIONS } from '../data/facets.js'
+import { useLocale } from '../i18n/index.jsx'
 
 const DIMENSION_COLOR = {
   interests: 'var(--brass)',
@@ -36,6 +37,7 @@ export function pointsFor(profile, answeredFacets, size) {
 }
 
 export default function Constellation({ profile, answeredFacets, size = 320, labelled = false }) {
+  const { t } = useLocale()
   const pts = pointsFor(profile, answeredFacets, size)
   const half = size / 2
   const path = pts.map(p => `${(p.x + half).toFixed(2)},${(p.y + half).toFixed(2)}`).join(' ')
@@ -43,15 +45,8 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
   return (
     <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" role="img"
          aria-describedby="constellation-desc">
-      <title>Your profile across 24 facets</title>
-      <desc id="constellation-desc">
-        A 24-point star plot. Each ray is one facet; the further the point from the
-        centre, the higher that facet scored. The 24 rays are grouped into four
-        contiguous arcs of six rays each, running clockwise from the top in this
-        order: interests, values, aptitudes, context. A short tick mark at the rim
-        marks where one arc ends and the next begins. The full numeric readout
-        follows below.
-      </desc>
+      <title>{t('constellation.title')}</title>
+      <desc id="constellation-desc">{t('constellation.desc')}</desc>
 
       {[0.25, 0.5, 0.75, 1].map(r => (
         <circle key={r} cx={half} cy={half} r={half * r}
@@ -97,7 +92,7 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
         return (
           <text key={d} x={half + Math.cos(a) * (half * 0.86)} y={half + Math.sin(a) * (half * 0.86)}
                 textAnchor="middle" className="font-mono uppercase"
-                fontSize={size * 0.03} letterSpacing={size * 0.005} fill="var(--haze)">{d}</text>
+                fontSize={size * 0.03} letterSpacing={size * 0.005} fill="var(--haze)">{t('dimension.' + d)}</text>
         )
       })}
     </svg>

@@ -190,6 +190,7 @@ export default {
     askTitle: 'Ask someone who knows you',
     askIntro: 'Self-report is weakest exactly where you can’t see yourself clearly. Send this link to someone who knows you well. They answer the same seventy-two statements about you, and you get a link back that shows where their view and yours part ways.',
     name: 'Your name, as they know you',
+    yourName: 'Your name, so they know who this came from',
     makeLink: 'Make a link',
     copyLink: 'Copy link',
     linkCopied: 'Link copied.',
@@ -206,6 +207,12 @@ export default {
     theySaw: '{name}',
     nobody: 'No outside view yet.',
     from: 'From {name}',
+    remove: 'Remove the view from {name}',
+  },
+
+  constellation: {
+    title: 'Your profile across 24 facets',
+    desc: 'A 24-point star plot. Each ray is one facet; the further the point from the centre, the higher that facet scored. The 24 rays are grouped into four contiguous arcs of six rays each, running clockwise from the top in this order: interests, values, aptitudes, context. A short tick mark at the rim marks where one arc ends and the next begins. The full numeric readout follows below.',
   },
 
   reminder: {
