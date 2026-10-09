@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import Constellation from './Constellation.jsx'
 import ProfileReadout from './ProfileReadout.jsx'
 import IndustryCard from './IndustryCard.jsx'
+import CompareFields from './CompareFields.jsx'
+import ObserverView from './ObserverView.jsx'
+import LanguageToggle from './LanguageToggle.jsx'
 import { scoreAnswers } from '../engine/score.js'
 import { matchIndustries } from '../engine/match.js'
 import { summarise } from '../engine/profile.js'
@@ -10,17 +13,21 @@ import { assessQuality } from '../engine/quality.js'
 import { nearMisses, SHIFT } from '../engine/nearmiss.js'
 import { diffProfiles, diffShortlists } from '../engine/history.js'
 import { toMarkdown } from '../engine/format.js'
-import { FACETS } from '../data/facets.js'
+import { buildIcs, retakeDate } from '../engine/ics.js'
+import { FACETS, DIMENSIONS } from '../data/facets.js'
 import { INDUSTRIES } from '../data/industries.js'
 import { QUESTIONS } from '../data/questions.js'
+import { useLocale } from '../i18n/index.jsx'
 
 const ALL_FACETS = new Set(FACETS.map(f => f.key))
 const INDUSTRY_BY_KEY = Object.fromEntries(INDUSTRIES.map(i => [i.key, i]))
-const INDUSTRY_NAMES = Object.fromEntries(INDUSTRIES.map(i => [i.key, i.name]))
 const FACET_BY_KEY = Object.fromEntries(FACETS.map(f => [f.key, f]))
 
 // O*NET requires this notice verbatim wherever their data is used — see
-// https://www.onetcenter.org/license_forproducts.html. Do not paraphrase it.
+// https://www.onetcenter.org/license_forproducts.html. Do not paraphrase it,
+// and do not translate it: "verbatim" is the licence term, so it stays in
+// English in every locale. (The Markdown export's shorter attribution is
+// Lodestar's own sentence and does translate — see export.attribution.)
 const ONET_ATTRIBUTION =
   "This product includes information from the O*NET 30.3 Database by the U.S. Department of Labor, Employment and Training Administration. Used under the CC BY 4.0 license. O*NET® is a trademark of USDOL/ETA. Lodestar has modified this information; O*NET has not approved, endorsed, or tested these modifications."
 
@@ -54,10 +61,49 @@ function groupFor(groups, key) {
   return groups.find(g => g.members.some(m => m.key === key))
 }
 
-function joinList(items) {
-  if (items.length === 1) return items[0]
-  if (items.length === 2) return `${items[0]} and ${items[1]}`
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+/**
+ * "A, B, and C" / "A, B y C". Intl.ListFormat knows each language's
+ * conjunction and comma rules, so no list grammar lives in the locale files.
+ */
+function joinList(items, dateLocale) {
+  return new Intl.ListFormat(dateLocale, { style: 'long', type: 'conjunction' }).format(items)
+}
+
+/**
+ * Fills a translated template whose placeholders are React nodes rather than
+ * strings — a facet label that needs its own <span>, say. Call t() with the
+ * plain-text vars first (it leaves unknown placeholders as written), then pass
+ * the result here with the node slots.
+ */
+function withSlots(template, slots) {
+  return template.split(/(\{\w+\})/).map((part, i) => {
+    const m = /^\{(\w+)\}$/.exec(part)
+    return m && slots[m[1]] !== undefined ? <span key={i}>{slots[m[1]]}</span> : part
+  })
+}
+
+/**
+ * A quality flag in the reader's language. The engine's own `message` is
+ * English and stays the source of truth for tests and the default export;
+ * the same numbers are re-read from `stats` and run through quality.<code>.
+ */
+function flagText(flag, stats, t) {
+  switch (flag.code) {
+    case 'straightline-share':
+      return t('quality.straightline-share', {
+        share: Math.round(stats.straightLining.share * 100), mode: stats.straightLining.mode,
+      })
+    case 'straightline-run':
+      return t('quality.straightline-run', { run: stats.straightLining.longestRun })
+    case 'contradictions':
+      return t('quality.contradictions', { n: stats.contradictions.length })
+    case 'rushed':
+      return stats.pace.medianMs < 1000
+        ? t('quality.rushedFast')
+        : t('quality.rushed', { seconds: (stats.pace.medianMs / 1000).toFixed(1) })
+    default:
+      return flag.message
+  }
 }
 
 const round = n => Math.round(n)
@@ -72,7 +118,8 @@ const BUTTON = 'font-display text-base px-5 py-2 rounded-sm border border-haze/4
  * than silently doing nothing. Status is announced via aria-live.
  */
 function ExportControls({ markdown }) {
-  const [status, setStatus] = useState('')
+  const { t } = useLocale()
+  const [status, setStatus] = useState(null)
 
   async function copy() {
     try {
@@ -90,18 +137,63 @@ function ExportControls({ markdown }) {
         document.body.removeChild(ta)
         if (!ok) throw new Error('execCommand failed')
       }
-      setStatus('Copied as Markdown.')
+      setStatus('ok')
     } catch {
-      setStatus('Could not reach the clipboard — use Print, or select the page and copy.')
+      setStatus('failed')
     }
   }
 
   return (
     <div className="flex flex-wrap items-center gap-3 print:hidden">
-      <button type="button" onClick={copy} className={BUTTON}>Copy as text</button>
-      <button type="button" onClick={() => window.print()} className={BUTTON}>Print or save as PDF</button>
-      <p role="status" aria-live="polite" className="font-mono text-xs text-haze">{status}</p>
+      <button type="button" onClick={copy} className={BUTTON}>{t('results.copy')}</button>
+      <button type="button" onClick={() => window.print()} className={BUTTON}>{t('results.print')}</button>
+      <p role="status" aria-live="polite" className="font-mono text-xs text-haze">
+        {status === 'ok' && t('results.copied')}
+        {status === 'failed' && t('results.copyFailed')}
+      </p>
     </div>
+  )
+}
+
+/**
+ * The retake reminder. The comparison against a previous run is only worth
+ * anything if a second run happens, so this offers a calendar event three
+ * weeks out while the page is still open. engine/ics.js builds the text; the
+ * download is plain DOM — a Blob, an object URL, and a throwaway
+ * <a download> clicked once — so there is no dependency and nothing leaves
+ * the machine. The link in the event is this page without its hash, so it
+ * never carries an observer code or an anchor along with it.
+ */
+function RetakeReminder() {
+  const { t } = useLocale()
+
+  function download() {
+    const ics = buildIcs({
+      title: t('reminder.eventTitle'),
+      description: t('reminder.eventBody'),
+      url: location.href.split('#')[0],
+      start: retakeDate(),
+    })
+    const href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = href
+    a.download = 'lodestar-retake.ics'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    // Revoked on the next tick, not immediately: some browsers start the
+    // download asynchronously and need the URL to still resolve.
+    setTimeout(() => URL.revokeObjectURL(href), 0)
+  }
+
+  return (
+    <section aria-label={t('reminder.title')} className="w-full max-w-2xl flex flex-col gap-3 print:hidden">
+      <h2 className="font-display text-xl text-bone">{t('reminder.title')}</h2>
+      <p className="font-body text-base leading-relaxed text-haze">{t('reminder.body')}</p>
+      <div>
+        <button type="button" onClick={download} className={BUTTON}>{t('reminder.button')}</button>
+      </div>
+    </section>
   )
 }
 
@@ -121,8 +213,17 @@ function ExportControls({ markdown }) {
  * banner when the answers look unread; a comparison against the previous run
  * so stability, not a single snapshot, carries the weight; and a "what would
  * change this" section for the industries that just missed.
+ *
+ * And three after that: a side-by-side of any two shortlisted fields, an
+ * outside view from someone who knows the respondent, and a calendar reminder
+ * to retake. Every user-facing sentence on the screen comes from the locale
+ * (i18n/en.js and es.js) except the O*NET notice, which must stay verbatim.
  */
-export default function Results({ answers, timings = {}, previous = null, onRecordRun, onRestart }) {
+export default function Results({
+  answers, timings = {}, previous = null, onRecordRun, onRestart,
+  observers = [], onAddObserver, onRemoveObserver,
+}) {
+  const { t } = useLocale()
   // Defensive second gate. App.jsx is responsible for never transitioning to
   // this stage with an incomplete answer set — scoreAnswers() throws on one,
   // and Task 11's arrow-key navigation can reach the last item without
@@ -136,46 +237,88 @@ export default function Results({ answers, timings = {}, previous = null, onReco
       <main className="min-h-screen flex items-center justify-center bg-ink text-bone px-6 py-16">
         <div className="w-full max-w-xl flex flex-col gap-6 text-center items-center">
           <p className="font-display text-2xl">
-            {missing} of {QUESTIONS.length} statements still need an answer.
+            {t('results.incompleteTitle', { missing, total: QUESTIONS.length })}
           </p>
-          <p className="font-body text-lg text-haze leading-relaxed">
-            These answers can't be scored as saved. Start over from the
-            beginning.
-          </p>
+          <p className="font-body text-lg text-haze leading-relaxed">{t('results.incompleteBody')}</p>
           <button
             type="button"
             onClick={onRestart}
             className="font-display text-lg px-8 py-3 bg-brass text-ink rounded-sm transition-colors hover:bg-brass/90"
           >
-            Start over
+            {t('results.restart')}
           </button>
         </div>
       </main>
     )
   }
 
-  return <CompleteResults answers={answers} timings={timings} previous={previous} onRecordRun={onRecordRun} onRestart={onRestart} />
+  return (
+    <CompleteResults
+      answers={answers}
+      timings={timings}
+      previous={previous}
+      onRecordRun={onRecordRun}
+      onRestart={onRestart}
+      observers={observers}
+      onAddObserver={onAddObserver}
+      onRemoveObserver={onRemoveObserver}
+    />
+  )
 }
 
-function CompleteResults({ answers, timings, previous, onRecordRun, onRestart }) {
+function CompleteResults({ answers, timings, previous, onRecordRun, onRestart, observers, onAddObserver, onRemoveObserver }) {
+  const { locale, t, ordinal, facet: translateFacet, industry, dateLocale } = useLocale()
+
+  // Language-independent: every number on the page. Recomputed only when the
+  // answers change, never on a language switch.
   const computed = useMemo(() => {
     const profile = scoreAnswers(answers)
     const ranked = matchIndustries(profile)
     const summary = summarise(profile, ranked)
     const cards = summary.shortlist.map(entry => {
-      const industry = INDUSTRY_BY_KEY[entry.key]
-      const match = { ...industry, fit: entry.fit }
+      const industryRecord = INDUSTRY_BY_KEY[entry.key]
+      const match = { ...industryRecord, fit: entry.fit }
       const reasons = explainMatch(entry, profile, answers, { flat: summary.flat })
       const group = groupFor(summary.groups, entry.key)
       return { key: entry.key, match, reasons, rank: group.rank, tied: group.members.length > 1 }
     })
     const quality = assessQuality(answers, timings)
     const misses = summary.whollyFlat ? [] : nearMisses(profile, ranked, summary.shortlist)
-    const markdown = toMarkdown({ profile, summary, cards, flags: quality.flags, industryNames: INDUSTRY_NAMES })
-    return { profile, ranked, summary, cards, quality, misses, markdown }
+    return { profile, ranked, summary, cards, quality, misses }
   }, [answers, timings])
 
-  const { profile, summary, cards, quality, misses, markdown } = computed
+  const { profile, summary, cards, quality, misses } = computed
+
+  const nameOf = key => industry(INDUSTRY_BY_KEY[key]).name
+  const labelOf = key => translateFacet(FACET_BY_KEY[key]).label
+  const list = items => joinList(items, dateLocale)
+  const flagTexts = quality.flags.map(f => ({ code: f.code, message: flagText(f, quality.stats, t) }))
+
+  // The export in the reader's language: translated sentences, labels and
+  // industry copy handed to the (English-by-default) engine formatter.
+  const markdown = useMemo(() => {
+    const strings = {
+      heading: t('export.heading'), scope: t('export.scope'), draft: t('export.draft'),
+      shortlist: t('export.shortlist'), noRanking: t('export.noRanking'), tied: t('card.tied'),
+      fit: t('export.fit'), why: t('export.why'), you: t('export.you'), estimate: t('export.estimate'),
+      against: t('export.against'), titles: t('export.titles'), firstMove: t('export.firstMove'),
+      alsoTied: t('export.alsoTied'), flat: t('export.flat'), profile: t('export.profile'),
+      attribution: t('export.attribution'),
+      levels: { entry: t('level.entry'), mid: t('level.mid'), senior: t('level.senior') },
+    }
+    return toMarkdown({
+      profile,
+      summary,
+      cards: cards.map(c => ({ ...c, match: industry(c.match) })),
+      flags: flagTexts,
+      industryNames: Object.fromEntries(INDUSTRIES.map(i => [i.key, industry(i).name])),
+      strings,
+      facetLabels: Object.fromEntries(FACETS.map(f => [f.key, translateFacet(f).label])),
+      dimensionLabels: Object.fromEntries(DIMENSIONS.map(d => [d, t(`dimension.${d}`)])),
+      ordinal,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed, locale])
 
   // Record this completion once the numbers exist. App makes this idempotent
   // on the run id, so StrictMode double-effects and reloads are harmless.
@@ -189,6 +332,9 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
   const comparison = previous
     ? { facets: diffProfiles(profile, previous.profile), shortlist: diffShortlists(summary.shortlist.map(e => e.key), previous.shortlist) }
     : null
+
+  // Comparing two fields needs two fields and a ranking worth comparing.
+  const showCompare = !summary.whollyFlat && cards.length >= 2
 
   return (
     <main className="min-h-screen bg-ink text-bone flex flex-col items-center pt-6 sm:pt-8">
@@ -221,12 +367,16 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
           as they stand.
         */}
         <div className="w-full max-w-2xl flex flex-col gap-4 font-body text-lg leading-relaxed">
-          <h1 className="font-display text-3xl sm:text-4xl text-bone">Your results</h1>
-          <p>
-            This is a self-report snapshot, not a verdict on who you are. What
-            follows is a shortlist to investigate, built from how you answered —
-            not a measurement of what you're capable of.
-          </p>
+          {/*
+            The language switch sits beside the h1, not in the nav: it changes
+            the whole page, numbers excepted, and a reader who arrived in the
+            wrong language should find it before reading a paragraph.
+          */}
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="font-display text-3xl sm:text-4xl text-bone">{t('results.title')}</h1>
+            <LanguageToggle className="print:hidden shrink-0 pt-1" />
+          </div>
+          <p>{t('results.scope')}</p>
 
           {/*
             Anchor nav. The page is long — seven cards, each with two
@@ -234,34 +384,21 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
             profile is a dozen screens down. Plain in-page links; the targets
             carry scroll-mt so a heading isn't hidden under the top edge.
           */}
-          <nav aria-label="On this page" className="print:hidden font-mono text-xs uppercase tracking-[0.2em] text-slate flex flex-wrap gap-x-5 gap-y-2 pt-2">
-            {!summary.whollyFlat && <a href="#shortlist" className="hover:text-brass">Shortlist</a>}
-            {misses.length > 0 && <a href="#near-misses" className="hover:text-brass">Just missed</a>}
-            {comparison && <a href="#comparison" className="hover:text-brass">Versus last run</a>}
-            <a href="#profile" className="hover:text-brass">Full profile</a>
-            <a href="#profile-interests" className="hover:text-brass">Interests</a>
-            <a href="#profile-values" className="hover:text-brass">Values</a>
-            <a href="#profile-aptitudes" className="hover:text-brass">Aptitudes</a>
-            <a href="#profile-context" className="hover:text-brass">Context</a>
+          <nav aria-label={t('results.navLabel')} className="print:hidden font-mono text-xs uppercase tracking-[0.2em] text-slate flex flex-wrap gap-x-5 gap-y-2 pt-2">
+            {!summary.whollyFlat && <a href="#shortlist" className="hover:text-brass">{t('results.nav.shortlist')}</a>}
+            {misses.length > 0 && <a href="#near-misses" className="hover:text-brass">{t('results.nav.nearMisses')}</a>}
+            {showCompare && <a href="#compare" className="hover:text-brass">{t('results.nav.compare')}</a>}
+            {comparison && <a href="#comparison" className="hover:text-brass">{t('results.nav.comparison')}</a>}
+            <a href="#observer" className="hover:text-brass">{t('results.nav.observer')}</a>
+            <a href="#profile" className="hover:text-brass">{t('results.nav.profile')}</a>
+            {DIMENSIONS.map(d => (
+              <a key={d} href={`#profile-${d}`} className="hover:text-brass">{t(`dimension.${d}`)}</a>
+            ))}
           </nav>
 
           <ExportControls markdown={markdown} />
 
-          <p className="font-mono text-sm text-haze leading-relaxed">
-            One note on the numbers: seven of the twenty-four facets aren't
-            measured data for any industry below. The six Values facets
-            (autonomy, impact, income, stability, mastery, recognition) are
-            missing because O*NET, the government dataset this runs on, dropped
-            Work Values entirely. Schedule freedom is missing because O*NET has
-            no measure of hours or place on a scale this can use — it records
-            work schedules as categories, not as a number — and the element we
-            first used turned out to measure decision-making discretion
-            instead, which is a different thing. So we estimated it. Those
-            seven figures per industry are Lodestar's own editorial estimate —
-            our judgment, plainly labelled, not data dressed up as fact.
-            Anywhere that estimate drives a reason, it says so, and every card
-            has a drawer showing where each of its twenty-four numbers came from.
-          </p>
+          <p className="font-mono text-sm text-haze leading-relaxed">{t('results.numbersNote')}</p>
         </div>
 
         {/*
@@ -270,20 +407,15 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
           from a run finished in ninety seconds, should not be read as the
           other kind, and the only honest place to say that is above it.
         */}
-        {quality.flags.length > 0 && (
+        {flagTexts.length > 0 && (
           <section
-            aria-label="About how these answers were given"
+            aria-label={t('results.draftLabel')}
             className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-rust/70 pl-4"
           >
-            <h2 className="font-display text-xl text-bone">Treat this run as a draft</h2>
-            <p className="font-body text-base leading-relaxed text-haze">
-              The pattern of these answers usually means the statements were
-              not being weighed one at a time. The results below are still
-              computed from them, but they are a draft to redo when you have
-              twelve unhurried minutes, not a snapshot to act on.
-            </p>
+            <h2 className="font-display text-xl text-bone">{t('results.draftTitle')}</h2>
+            <p className="font-body text-base leading-relaxed text-haze">{t('results.draftBody')}</p>
             <ul className="flex flex-col gap-1.5 pl-4 list-disc marker:text-rust">
-              {quality.flags.map(f => (
+              {flagTexts.map(f => (
                 <li key={f.code} className="font-body text-base leading-relaxed text-bone">{f.message}</li>
               ))}
             </ul>
@@ -292,27 +424,14 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
 
         {!summary.whollyFlat && summary.flat.length > 0 && (
           <div className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-            <p>
-              Your answers ran too even across {joinList(summary.flat)} to
-              say much there — those facets sat too close together to tell
-              what you actually favor. The ranking below leans on the
-              dimensions that did vary.
-            </p>
+            <p>{t('results.flatDims', { dims: list(summary.flat.map(d => t(`dimension.${d}`))) })}</p>
           </div>
         )}
 
         {summary.whollyFlat ? (
           <div className="w-full max-w-2xl font-body text-lg leading-relaxed text-center flex flex-col gap-3">
-            <p className="font-display text-2xl">
-              This instrument did not find a signal in these answers.
-            </p>
-            <p className="text-haze">
-              Every dimension came back too even to rank — nothing stood out
-              enough to build a shortlist on. That's a real result, not a
-              failure: it means these seventy-two statements didn't surface a
-              strong lean, not that you lack one. The full readout below still
-              shows exactly where every facet landed.
-            </p>
+            <p className="font-display text-2xl">{t('results.whollyFlatTitle')}</p>
+            <p className="text-haze">{t('results.whollyFlatBody')}</p>
           </div>
         ) : (
           <div id="shortlist" className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
@@ -336,12 +455,7 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
             */}
             {summary.alsoTied.length > 0 && (
               <p className="font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-                Also within a point of these:{' '}
-                {joinList(summary.alsoTied.map(entry => INDUSTRY_BY_KEY[entry.key].name))}.
-                They tied with the cards at the bottom of this list, so the
-                order between them means nothing — we stopped at seven rather
-                than hand you fourteen. If one of them is the field you were
-                already curious about, count it as on the list.
+                {t('results.alsoTied', { names: list(summary.alsoTied.map(entry => nameOf(entry.key))) })}
               </p>
             )}
           </div>
@@ -355,29 +469,28 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
           yourself, not a target to hit.
         */}
         {misses.length > 0 && (
-          <section id="near-misses" aria-label="Industries that just missed" className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
-            <h2 className="font-display text-2xl text-bone">What would change this</h2>
+          <section id="near-misses" aria-label={t('results.nearLabel')} className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
+            <h2 className="font-display text-2xl text-bone">{t('results.nearTitle')}</h2>
             <p className="font-body text-base leading-relaxed text-haze">
-              The next {misses.length} fields below the line, and for each the one
-              facet that would have helped it most if your answers had put you{' '}
-              {SHIFT} points further along it. If one of these describes a
-              change of self-view you recognise, the field belongs on the list.
+              {t('results.nearIntro', { n: misses.length, shift: SHIFT })}
             </p>
             <ul className="flex flex-col gap-4">
               {misses.map(m => {
-                const facet = FACET_BY_KEY[m.shift.facet]
-                const direction = m.shift.direction > 0 ? 'higher' : 'lower'
+                const helped = t('results.nearHelped', {
+                  direction: m.shift.direction > 0 ? t('results.higher') : t('results.lower'),
+                  from: round(m.shift.from),
+                  to: round(m.shift.to),
+                  newFit: round(m.shift.newFit),
+                  outcome: m.reaches ? t('results.nearReaches') : t('results.nearNot'),
+                })
                 return (
                   <li key={m.key} className="flex flex-col gap-1 border-l-2 border-haze/30 pl-4">
                     <p className="font-display text-lg text-bone">
-                      {m.name}{' '}
-                      <span className="font-mono text-sm text-haze">{round(m.fit)}% — {round(m.gap)} points short</span>
+                      {nameOf(m.key)}{' '}
+                      <span className="font-mono text-sm text-haze">{t('results.nearShort', { fit: round(m.fit), gap: round(m.gap) })}</span>
                     </p>
                     <p className="font-body text-base leading-relaxed text-haze">
-                      Most helped by scoring {direction} on{' '}
-                      <span className="text-bone">{facet.label}</span>{' '}
-                      ({round(m.shift.from)} → {round(m.shift.to)}): fit would be {round(m.shift.newFit)}%,{' '}
-                      {m.reaches ? 'enough to join the shortlist.' : 'still short of the shortlist on its own.'}
+                      {withSlots(helped, { label: <span className="text-bone">{labelOf(m.shift.facet)}</span> })}
                     </p>
                   </li>
                 )
@@ -387,6 +500,12 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
         )}
 
         {/*
+          Compare two. Placed after the near-misses so it reads as a tool for
+          the list above, once the list is settled, rather than part of it.
+        */}
+        {showCompare && <CompareFields fields={cards.map(c => c.match)} profile={profile} />}
+
+        {/*
           Versus the previous run. The single most honest thing a self-report
           can do is show whether it says the same thing twice. Facets that
           moved under ten points are called stable and are the ones to trust;
@@ -394,46 +513,53 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
           discount, however confidently either run printed them.
         */}
         {comparison && (
-          <section id="comparison" aria-label="Compared with your previous run" className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
-            <h2 className="font-display text-2xl text-bone">Versus your run on {previous.date}</h2>
+          <section id="comparison" aria-label={t('results.vsLabel')} className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
+            <h2 className="font-display text-2xl text-bone">{t('results.vsTitle', { date: previous.date })}</h2>
             <p className="font-body text-base leading-relaxed text-haze">
-              {comparison.facets.stable.length} of 24 facets landed within ten
-              points of last time — those are the ones to trust.{' '}
+              {t('results.vsStable', { n: comparison.facets.stable.length })}{' '}
               {comparison.facets.moved.length === 0
-                ? 'Nothing moved by more than that.'
-                : `${comparison.facets.moved.length} moved by ten or more; the biggest are below, and they are the numbers to read with a grain of salt.`}
+                ? t('results.vsNone')
+                : t('results.vsMoved', { n: comparison.facets.moved.length })}
             </p>
             {comparison.facets.moved.length > 0 && (
               <ul className="flex flex-col gap-1.5">
                 {comparison.facets.moved.slice(0, 6).map(d => (
                   <li key={d.key} className="flex items-baseline justify-between gap-4 font-body text-base text-bone">
-                    <span>{d.label}</span>
+                    <span>{labelOf(d.key)}</span>
                     <span className="font-mono text-sm text-haze">{round(d.from)} → {round(d.to)} <span className={Math.abs(d.delta) >= 20 ? 'text-rust' : ''}>({signed(d.delta)})</span></span>
                   </li>
                 ))}
               </ul>
             )}
             <p className="font-body text-base leading-relaxed text-haze">
-              {comparison.shortlist.kept.length > 0 && (
-                <>On the shortlist both times: {joinList(comparison.shortlist.kept.map(k => INDUSTRY_NAMES[k]))}. </>
-              )}
-              {comparison.shortlist.added.length > 0 && (
-                <>New this time: {joinList(comparison.shortlist.added.map(k => INDUSTRY_NAMES[k]))}. </>
-              )}
-              {comparison.shortlist.dropped.length > 0 && (
-                <>Dropped off: {joinList(comparison.shortlist.dropped.map(k => INDUSTRY_NAMES[k]))}.</>
-              )}
+              {[
+                comparison.shortlist.kept.length > 0 && t('results.vsKept', { names: list(comparison.shortlist.kept.map(nameOf)) }),
+                comparison.shortlist.added.length > 0 && t('results.vsAdded', { names: list(comparison.shortlist.added.map(nameOf)) }),
+                comparison.shortlist.dropped.length > 0 && t('results.vsDropped', { names: list(comparison.shortlist.dropped.map(nameOf)) }),
+              ].filter(Boolean).join(' ')}
             </p>
           </section>
         )}
 
         {!comparison && (
           <p className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-            One run is a snapshot. Take this again in a few weeks and this
-            page will show you which facets held steady — those are the ones
-            worth trusting — and which moved.
+            {t('results.firstRun')}
           </p>
         )}
+
+        <RetakeReminder />
+
+        {/*
+          How others see you. After the run-to-run comparison because it is
+          the same question asked of a different witness: does this profile
+          hold up when someone else answers?
+        */}
+        <ObserverView
+          profile={profile}
+          observers={observers}
+          onAddObserver={onAddObserver}
+          onRemoveObserver={onRemoveObserver}
+        />
 
         {/*
           Spec §3.7's cross-cutting note. Deliberately placed after the cards
@@ -445,39 +571,31 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart })
         */}
         {!summary.whollyFlat && fitsSelfEmployment(profile) && (
           <section
-            aria-label="Working for yourself"
+            aria-label={t('results.selfLabel')}
             className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-brass/50 pl-4"
           >
-            <h2 className="font-display text-xl text-bone">Working for yourself</h2>
+            <h2 className="font-display text-xl text-bone">{t('results.selfTitle')}</h2>
             <p className="font-body text-base leading-relaxed text-bone">
-              Something cuts across the whole list above. You scored{' '}
-              {Math.round(profile.autonomy)} on autonomy,{' '}
-              {Math.round(profile.riskTolerance)} on risk tolerance, and{' '}
-              {Math.round(profile.enterprising)} on enterprising — all three
-              high, which is the combination that tends to point at running
-              your own thing.
+              {t('results.selfBody1', {
+                autonomy: round(profile.autonomy),
+                risk: round(profile.riskTolerance),
+                enterprising: round(profile.enterprising),
+              })}
             </p>
-            <p className="font-body text-base leading-relaxed text-haze">
-              This isn't a twenty-third industry to weigh against the others.
-              Every field above has a self-employed version — contract,
-              freelance, private practice, your own small operation — and in
-              any of these, that path fits your profile. Pick the field on the
-              evidence above, then decide separately whether you want to do it
-              on someone's payroll or on your own account.
-            </p>
+            <p className="font-body text-base leading-relaxed text-haze">{t('results.selfBody2')}</p>
           </section>
         )}
 
         <ProfileReadout profile={profile} answers={answers} />
 
         <footer className="w-full max-w-2xl font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
-          <p>{ONET_ATTRIBUTION}</p>
+          <p lang="en">{ONET_ATTRIBUTION}</p>
         </footer>
 
         <div className="flex flex-wrap gap-3 print:hidden">
           <ExportControls markdown={markdown} />
           <button type="button" onClick={onRestart} className={BUTTON}>
-            Start over
+            {t('results.restart')}
           </button>
         </div>
       </div>

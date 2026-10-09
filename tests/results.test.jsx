@@ -1,6 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import Results from '../src/components/Results.jsx'
+import { LocaleProvider } from '../src/i18n/index.jsx'
+import en from '../src/i18n/en.js'
+import es from '../src/i18n/es.js'
+import { encodeAnswers } from '../src/engine/observer.js'
 import { QUESTIONS } from '../src/data/questions.js'
 import { FACETS } from '../src/data/facets.js'
 import { INDUSTRIES } from '../src/data/industries.js'
@@ -134,7 +138,8 @@ describe('the self-employment cross-cutting note (spec §3.7)', () => {
     expect(screen.getByRole('region', { name: /working for yourself/i })).toBeDefined()
     expect(document.body.textContent).toMatch(/self-employed path fits your profile|in\s+any of these, that path fits your profile/i)
     // It must read as a mode of working, not a twenty-third recommendation.
-    expect(document.body.textContent).toMatch(/isn't a twenty-third industry/i)
+    // en.js uses a typographic apostrophe; either form is the same sentence.
+    expect(document.body.textContent).toMatch(/isn['’]t a twenty-third industry/i)
     expect(screen.queryAllByRole('article').length).toBeGreaterThanOrEqual(5)
   })
 
@@ -269,5 +274,190 @@ describe('<Results> additions', () => {
   it('invites a second run when there is no previous one', () => {
     render(<Results answers={varied} onRestart={() => {}} />)
     expect(document.body.textContent).toMatch(/Take this again in a few weeks/)
+  })
+})
+
+describe('compare two fields', () => {
+  it('renders a 24-row facet table and follows the selects', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const section = screen.getByRole('region', { name: en.compare.label })
+    const table = within(section).getByRole('table')
+    const rows = table.querySelectorAll('tbody tr[data-facet]')
+    expect(rows).toHaveLength(24)
+    // One header row per dimension, each naming it.
+    expect(table.querySelectorAll('th[scope="colgroup"]')).toHaveLength(4)
+
+    const [first, second] = within(section).getAllByRole('combobox')
+    const options = [...second.querySelectorAll('option')].map(o => o.value)
+    expect(options.length).toBeGreaterThanOrEqual(5)
+    expect(first.value).toBe(options[0])
+    expect(second.value).toBe(options[1])
+
+    const headerBefore = table.querySelector('thead').textContent
+    const rowsBefore = [...rows].map(r => r.textContent).join('|')
+    fireEvent.change(second, { target: { value: options[options.length - 1] } })
+    expect(second.value).toBe(options[options.length - 1])
+    expect(table.querySelector('thead').textContent).not.toBe(headerBefore)
+    expect([...table.querySelectorAll('tbody tr[data-facet]')].map(r => r.textContent).join('|')).not.toBe(rowsBefore)
+  })
+
+  it('is linked from the nav and absent on a wholly flat profile', () => {
+    const { unmount } = render(<Results answers={varied} onRestart={() => {}} />)
+    expect(screen.getByRole('navigation', { name: /on this page/i }).querySelector('a[href="#compare"]')).not.toBeNull()
+    unmount()
+    render(<Results answers={uniform} onRestart={() => {}} />)
+    expect(document.getElementById('compare')).toBeNull()
+  })
+})
+
+describe('how others see you', () => {
+  const observerCode = encodeAnswers(uniform)
+
+  it('says nobody has answered yet when there are no observers', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const section = screen.getByRole('region', { name: en.observer.label })
+    expect(section.textContent).toContain(en.observer.nobody)
+  })
+
+  it('makes an observer link carrying the name', () => {
+    render(<Results answers={varied} onRestart={() => {}} />)
+    const section = screen.getByRole('region', { name: en.observer.label })
+    fireEvent.change(within(section).getByLabelText(en.observer.name), { target: { value: 'Jo Smith' } })
+    fireEvent.click(within(section).getByRole('button', { name: en.observer.makeLink }))
+    const link = within(section).getByRole('textbox', { name: en.observer.copyLink })
+    expect(link.readOnly).toBe(true)
+    expect(link.value).toMatch(/#observer=Jo%20Smith$/)
+  })
+
+  it('accepts a pasted return link and hands the name and code up', () => {
+    const onAddObserver = vi.fn().mockReturnValue(true)
+    render(<Results answers={varied} onRestart={() => {}} onAddObserver={onAddObserver} />)
+    const section = screen.getByRole('region', { name: en.observer.label })
+    fireEvent.change(within(section).getByLabelText(en.observer.paste), {
+      target: { value: `https://example.org/lodestar/#from=Ana:${observerCode}` },
+    })
+    fireEvent.click(within(section).getByRole('button', { name: en.observer.pasteButton }))
+    expect(onAddObserver).toHaveBeenCalledWith('Ana', observerCode)
+    expect(section.textContent).toContain(en.observer.added)
+  })
+
+  it('accepts a bare code, filed under ?', () => {
+    const onAddObserver = vi.fn().mockReturnValue(true)
+    render(<Results answers={varied} onRestart={() => {}} onAddObserver={onAddObserver} />)
+    const section = screen.getByRole('region', { name: en.observer.label })
+    fireEvent.change(within(section).getByLabelText(en.observer.paste), { target: { value: `  ${observerCode} ` } })
+    fireEvent.click(within(section).getByRole('button', { name: en.observer.pasteButton }))
+    expect(onAddObserver).toHaveBeenCalledWith('?', observerCode)
+  })
+
+  it('rejects a link that does not carry a complete set of answers', () => {
+    const onAddObserver = vi.fn().mockReturnValue(true)
+    render(<Results answers={varied} onRestart={() => {}} onAddObserver={onAddObserver} />)
+    const section = screen.getByRole('region', { name: en.observer.label })
+    fireEvent.change(within(section).getByLabelText(en.observer.paste), {
+      target: { value: 'https://example.org/#from=Ana:not-a-code' },
+    })
+    fireEvent.click(within(section).getByRole('button', { name: en.observer.pasteButton }))
+    expect(onAddObserver).not.toHaveBeenCalled()
+    expect(section.textContent).toContain(en.observer.pasteBad)
+  })
+
+  it('lists the facets where an observer differs, and removes on request', () => {
+    const onRemoveObserver = vi.fn()
+    render(
+      <Results
+        answers={varied}
+        onRestart={() => {}}
+        observers={[{ name: 'Ana', code: observerCode, date: '2026-10-01' }]}
+        onRemoveObserver={onRemoveObserver}
+      />
+    )
+    const section = screen.getByRole('region', { name: en.observer.label })
+    expect(section.textContent).not.toContain(en.observer.nobody)
+    expect(section.textContent).toContain('From Ana')
+    expect(section.textContent).toContain('2026-10-01')
+    expect(section.textContent).toMatch(/of 24 facets within ten points — you and Ana/)
+    expect(section.textContent).toMatch(/\d+ differ by ten or more/)
+    const list = within(section).getByRole('list', { name: 'From Ana' })
+    const items = within(list).getAllByRole('listitem')
+    expect(items.length).toBeGreaterThan(0)
+    expect(items[0].textContent).toMatch(/you \d+ · Ana 50 \([+-]\d+\)/)
+
+    fireEvent.click(within(section).getByRole('button', { name: 'Remove the view from Ana' }))
+    expect(onRemoveObserver).toHaveBeenCalledWith(observerCode)
+  })
+})
+
+describe('retake reminder', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('downloads a calendar file', async () => {
+    const createObjectURL = vi.fn(() => 'blob:lodestar-test')
+    const revokeObjectURL = vi.fn()
+    Object.assign(URL, { createObjectURL, revokeObjectURL })
+    const clicked = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () { clicked.push(this) })
+
+    render(<Results answers={varied} onRestart={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: en.reminder.button }))
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    const blob = createObjectURL.mock.calls[0][0]
+    expect(blob.type).toMatch(/^text\/calendar/)
+    const text = await blob.text()
+    expect(text).toMatch(/^BEGIN:VCALENDAR\r\n/)
+    expect(text).toContain(`SUMMARY:${en.reminder.eventTitle}`)
+
+    expect(clicked).toHaveLength(1)
+    expect(clicked[0].getAttribute('download')).toBe('lodestar-retake.ics')
+    expect(clicked[0].getAttribute('href')).toBe('blob:lodestar-test')
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:lodestar-test'))
+  })
+})
+
+describe('<Results> in Spanish', () => {
+  it('renders the page, the cards and the industry names in Spanish', () => {
+    render(
+      <LocaleProvider initial="es">
+        <Results answers={varied} onRestart={() => {}} />
+      </LocaleProvider>
+    )
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(es.results.title)
+    const profile = scoreAnswers(varied)
+    const top = summarise(profile, matchIndustries(profile)).shortlist[0].key
+    const firstCard = screen.getAllByRole('article')[0]
+    expect(within(firstCard).getByRole('heading', { level: 2 }).textContent).toBe(es.industries[top].name)
+    expect(firstCard.textContent).toContain(es.card.why)
+    expect(screen.getByRole('region', { name: es.compare.label })).toBeDefined()
+    expect(screen.getByRole('button', { name: es.reminder.button })).toBeDefined()
+    // The O*NET notice is the one thing that must stay verbatim English.
+    expect(document.body.textContent).toMatch(/O\*NET 30\.3 Database/)
+  })
+
+  it('switches language from the toggle on the results page', () => {
+    render(
+      <LocaleProvider initial="en">
+        <Results answers={varied} onRestart={() => {}} />
+      </LocaleProvider>
+    )
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(en.results.title)
+    fireEvent.click(screen.getByRole('button', { name: 'Español' }))
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(es.results.title)
+  })
+
+  it('copies the Markdown export in Spanish', async () => {
+    const writeText = vi.fn().mockResolvedValue()
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(
+      <LocaleProvider initial="es">
+        <Results answers={varied} onRestart={() => {}} />
+      </LocaleProvider>
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: es.results.copy })[0])
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const md = writeText.mock.calls[0][0]
+    expect(md).toMatch(/^# Resultados de Lodestar/)
+    expect(md).toContain(`## ${es.export.profile}`)
+    expect(md).toContain('1.º')
   })
 })

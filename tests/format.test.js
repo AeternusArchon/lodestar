@@ -60,6 +60,29 @@ describe('toMarkdown', () => {
     expect(md).toContain('- Looked rushed.')
   })
 
+  it('uses a caller-supplied strings object and labels, falling back to English for the rest', () => {
+    const results = build(varied)
+    const md = toMarkdown({
+      ...results,
+      date: '2026-10-07',
+      strings: { heading: 'Resultados — {date}', shortlist: 'Lista corta', fit: '{name} ({fit}% de ajuste)', profile: 'Perfil' },
+      facetLabels: { realistic: 'Realista' },
+      dimensionLabels: { interests: 'Intereses' },
+      ordinal: n => `${n}.º`,
+    })
+    expect(md).toMatch(/^# Resultados — 2026-10-07/)
+    expect(md).toContain('## Lista corta')
+    expect(md).toContain('## Perfil')
+    expect(md).toContain('### 1.º — ')
+    expect(md).toContain(`(${Math.round(results.cards[0].match.fit)}% de ajuste)`)
+    expect(md).toContain(`- Realista: ${Math.round(results.profile.realistic)}`)
+    expect(md).toContain('**Intereses**')
+    // Not overridden, so still English.
+    expect(md).toContain('**Values**')
+    expect(md).toMatch(/not a verdict/)
+    expect(md).not.toContain('Lodestar results')
+  })
+
   it('says so instead of ranking on a wholly flat profile', () => {
     const uniform = Object.fromEntries(QUESTIONS.map(q => [q.id, 3]))
     const profile = scoreAnswers(uniform)

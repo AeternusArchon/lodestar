@@ -1,12 +1,6 @@
 import { DIMENSIONS, facetsByDimension } from '../data/facets.js'
-import { facetPrecision, LEVEL_LABEL } from '../engine/precision.js'
-
-const DIMENSION_LABEL = {
-  interests: 'Interests',
-  values: 'Values',
-  aptitudes: 'Aptitudes',
-  context: 'Context',
-}
+import { facetPrecision } from '../engine/precision.js'
+import { useLocale } from '../i18n/index.jsx'
 
 /**
  * One facet's row: label, mono score, a bar, the facet's blurb, and how much
@@ -24,8 +18,12 @@ const DIMENSION_LABEL = {
  * person's own answers on that facet pulled apart after reverse-keying —
  * says that too, since a mean of two items that disagree is barely a
  * measurement at all.
+ *
+ * `facet` arrives already translated (label, blurb, blurbLow); the precision
+ * and aria copy come from the readout.* keys.
  */
 function FacetRow({ facet, score, precision }) {
+  const { t } = useLocale()
   const rounded = Math.round(score)
   const pct = Math.min(100, Math.max(0, rounded))
   const high = rounded >= 50
@@ -37,12 +35,12 @@ function FacetRow({ facet, score, precision }) {
         <span className="font-display text-base text-bone">{facet.label}</span>
         <span className="font-mono text-sm text-haze">
           {rounded}
-          {rough && <span className="ml-1 text-xs" title="Rough estimate — two statements">~</span>}
+          {rough && <span className="ml-1 text-xs" title={t('readout.roughTitle')}>~</span>}
         </span>
       </div>
       <div
         role="img"
-        aria-label={`${facet.label}: ${rounded} out of 100${rough ? ', rough estimate' : ''}`}
+        aria-label={t('readout.ariaScore', { label: facet.label, score: rounded }) + (rough ? t('readout.ariaRough') : '')}
         className="h-1.5 w-full rounded-full bg-haze/15 overflow-hidden"
       >
         <div
@@ -59,8 +57,8 @@ function FacetRow({ facet, score, precision }) {
       */}
       <p className="font-body text-sm leading-snug text-haze">{high ? facet.blurb : facet.blurbLow}</p>
       <p className="font-mono text-xs text-haze/80">
-        {LEVEL_LABEL[precision.level]}
-        {precision.disagree && ' · your answers on this one pulled in different directions, so trust it less'}
+        {t(`readout.level.${precision.level}`)}
+        {precision.disagree && t('readout.disagree')}
       </p>
     </div>
   )
@@ -72,29 +70,25 @@ function FacetRow({ facet, score, precision }) {
  * block carries an id so the results screen's anchor nav can jump to it.
  */
 export default function ProfileReadout({ profile, answers = {} }) {
+  const { t, facet: translateFacet } = useLocale()
   const precision = facetPrecision(answers)
 
   return (
-    <section id="profile" aria-label="Full profile readout" className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
+    <section id="profile" aria-label={t('readout.label')} className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
       <div className="flex flex-col gap-2">
-        <h2 className="font-display text-2xl text-bone">Your full profile</h2>
-        <p className="font-mono text-xs text-haze leading-relaxed">
-          A <span className="text-bone">~</span> marks a rough estimate: that
-          facet rests on two statements, so a difference of a few points means
-          nothing. Interests rest on five statements each and are the firmest
-          numbers here.
-        </p>
+        <h2 className="font-display text-2xl text-bone">{t('readout.title')}</h2>
+        <p className="font-mono text-xs text-haze leading-relaxed">{t('readout.note')}</p>
       </div>
       {DIMENSIONS.map(dimension => (
         <div key={dimension} id={`profile-${dimension}`} className="flex flex-col gap-4 scroll-mt-6">
           <h3 className="font-mono text-xs uppercase tracking-[0.25em] text-slate">
-            {DIMENSION_LABEL[dimension]}
+            {t(`dimension.${dimension}`)}
           </h3>
           <div className="flex flex-col gap-5">
             {facetsByDimension(dimension).map(facet => (
               <FacetRow
                 key={facet.key}
-                facet={facet}
+                facet={translateFacet(facet)}
                 score={profile[facet.key]}
                 precision={precision[facet.key]}
               />
