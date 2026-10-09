@@ -1,6 +1,7 @@
 import { DIMENSIONS, facetsByDimension } from '../data/facets.js'
 import { facetPrecision } from '../engine/precision.js'
 import { useLocale } from '../i18n/index.jsx'
+import { SECTION_TITLE } from './ui.js'
 
 /**
  * One facet's row: label, mono score, a bar, the facet's blurb, and how much
@@ -33,9 +34,10 @@ function FacetRow({ facet, score, precision }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-4">
         <span className="font-display text-base text-bone">{facet.label}</span>
-        <span className="font-mono text-sm text-haze">
+        {/* A fixed slot for the ~ so rough and firm scores right-align together. */}
+        <span className="font-mono text-sm text-haze whitespace-nowrap">
           {rounded}
-          {rough && <span className="ml-1 text-xs" title={t('readout.roughTitle')}>~</span>}
+          <span className="inline-block w-[2ch] text-left pl-1 text-xs" title={rough ? t('readout.roughTitle') : undefined}>{rough ? '~' : ''}</span>
         </span>
       </div>
       <div
@@ -56,7 +58,7 @@ function FacetRow({ facet, score, precision }) {
         threshold the bar colour already uses, so the two never disagree.
       */}
       <p className="font-body text-sm leading-snug text-haze">{high ? facet.blurb : facet.blurbLow}</p>
-      <p className="font-mono text-xs text-haze/80">
+      <p className="font-mono text-xs leading-relaxed text-haze">
         {t(`readout.level.${precision.level}`)}
         {precision.disagree && t('readout.disagree')}
       </p>
@@ -76,8 +78,8 @@ export default function ProfileReadout({ profile, answers = {} }) {
   return (
     <section id="profile" aria-label={t('readout.label')} className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
       <div className="flex flex-col gap-2">
-        <h2 className="font-display text-2xl text-bone">{t('readout.title')}</h2>
-        <p className="font-mono text-xs text-haze leading-relaxed">{t('readout.note')}</p>
+        <h2 className={SECTION_TITLE}>{t('readout.title')}</h2>
+        <p className="font-body text-sm text-haze leading-relaxed">{t('readout.note')}</p>
       </div>
       {DIMENSIONS.map(dimension => (
         <div key={dimension} id={`profile-${dimension}`} className="flex flex-col gap-4 scroll-mt-6">

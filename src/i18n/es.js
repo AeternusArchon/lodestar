@@ -44,7 +44,7 @@ export default {
   question: {
     of: 'Pregunta {n} de {total}',
     explain: '¿Qué significa esto?',
-    hide: 'Ocultar',
+    hide: 'Ocultar la explicación',
     options: {
       1: 'Totalmente en desacuerdo',
       2: 'En desacuerdo',
@@ -99,6 +99,7 @@ export default {
     nearLabel: 'Sectores que quedaron fuera por poco',
     nearIntro: 'Los siguientes {n} campos por debajo de la línea y, para cada uno, la faceta que más lo habría ayudado si tus respuestas te hubieran situado {shift} puntos más allá en ella. Si alguno describe un cambio en cómo te ves que reconoces, ese campo merece estar en la lista.',
     nearShort: '{fit}% — le faltan {gap} puntos',
+    nearShortOne: '{fit}% — le falta un punto o menos',
     nearHelped: 'Lo que más lo ayudaría: puntuar {direction} en {label} ({from} → {to}); el ajuste sería {newFit}%, {outcome}',
     nearReaches: 'suficiente para entrar en la lista corta.',
     nearNot: 'todavía insuficiente por sí solo para entrar en la lista corta.',
@@ -177,7 +178,9 @@ export default {
     you: 'Tú',
     favours: 'Favorece',
     even: 'empate',
-    note: 'Una faceta favorece al campo cuyo número queda más cerca del tuyo una vez que cada dimensión se centra en su propia media — la misma comparación que usa la clasificación. Los Valores y la libertad de horario son estimaciones editoriales del lado del campo.',
+    note: 'Una faceta favorece al campo cuyo número queda más cerca del tuyo una vez que cada dimensión se centra en su propia media — la misma comparación que usa la clasificación.',
+    dagger: 'Los Valores y la libertad de horario son estimaciones editoriales del lado del campo.',
+    daggerShort: 'estimación editorial',
   },
 
   observer: {
@@ -189,6 +192,9 @@ export default {
     yourName: 'Tu nombre, para que sepa de quién viene',
     makeLink: 'Crear un enlace',
     copyLink: 'Copiar enlace',
+    linkOut: 'El enlace para enviarle',
+    linkBack: 'El enlace para devolver',
+    codeLabel: 'O envía solo este código. Si una app de mensajería estropea el enlace, el código pegado por sí solo funciona igual.',
     linkCopied: 'Enlace copiado.',
     linkFailed: 'No se pudo copiar — selecciona el enlace y cópialo a mano.',
     paste: 'Pega el enlace que te enviaron de vuelta',

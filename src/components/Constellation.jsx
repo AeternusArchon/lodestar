@@ -36,14 +36,23 @@ export function pointsFor(profile, answeredFacets, size) {
   })
 }
 
+/*
+ * The plot itself always spans `size`, with the rim at radius size/2; the
+ * viewBox is padded around it so the rim stroke and a facet scored 100 are
+ * not shaved off at the edge of a full-bleed box, and so the labelled
+ * version can set the four dimension names OUTSIDE the rim, clear of the
+ * polygon, instead of on top of the data.
+ */
 export default function Constellation({ profile, answeredFacets, size = 320, labelled = false }) {
   const { t } = useLocale()
   const pts = pointsFor(profile, answeredFacets, size)
   const half = size / 2
   const path = pts.map(p => `${(p.x + half).toFixed(2)},${(p.y + half).toFixed(2)}`).join(' ')
+  const pad = labelled ? size * 0.06 : 4
+  const fontSize = size * 0.032
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" role="img"
+    <svg viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} width="100%" height="100%" role="img"
          aria-describedby="constellation-desc">
       <title>{t('constellation.title')}</title>
       <desc id="constellation-desc">{t('constellation.desc')}</desc>
@@ -79,20 +88,27 @@ export default function Constellation({ profile, answeredFacets, size = 320, lab
       })}
 
       <polygon points={path} fill="var(--brass)" fillOpacity="0.14"
-               stroke="var(--brass)" strokeWidth="1.5"
+               stroke="var(--brass)" strokeWidth="1.5" data-role="constellation-shape"
                style={{ transition: 'all 400ms ease-out' }} />
 
       {pts.map(p => (
         <circle key={p.facet} cx={p.x + half} cy={p.y + half} r="2.5"
-                fill={DIMENSION_COLOR[p.dimension]} />
+                fill={DIMENSION_COLOR[p.dimension]} data-role="constellation-dot" />
       ))}
 
       {labelled && DIMENSIONS.map((d, i) => {
+        // Mid-angle of the dimension's arc, which lands on a diagonal. Set
+        // beyond the rim, out in the square's corner where there is room, and
+        // centred on that point: the rim curves away from a label there, so
+        // even the longer Spanish names clear both the plot and the edge.
         const a = ((i * PER_DIMENSION + (PER_DIMENSION - 1) / 2) / FACETS.length) * Math.PI * 2 - Math.PI / 2
+        const r = half * 1.13
+        const x = half + Math.cos(a) * r
+        const y = half + Math.sin(a) * r + (Math.sin(a) > 0 ? fontSize * 0.8 : 0)
         return (
-          <text key={d} x={half + Math.cos(a) * (half * 0.86)} y={half + Math.sin(a) * (half * 0.86)}
-                textAnchor="middle" className="font-mono uppercase"
-                fontSize={size * 0.03} letterSpacing={size * 0.005} fill="var(--haze)">{t('dimension.' + d)}</text>
+          <text key={d} x={x} y={y}
+                textAnchor="middle" className="font-mono uppercase" data-role="constellation-label"
+                fontSize={fontSize} letterSpacing={size * 0.004} fill="var(--haze)">{t('dimension.' + d)}</text>
         )
       })}
     </svg>

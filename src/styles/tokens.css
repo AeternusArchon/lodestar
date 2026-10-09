@@ -10,7 +10,7 @@
 
 body { background: var(--ink); color: var(--bone); }
 
-:where(a, button, input, [tabindex]):focus-visible {
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--brass);
   outline-offset: 2px;
 }
@@ -33,8 +33,17 @@ body { background: var(--ink); color: var(--bone); }
   body, .bg-ink { background: var(--bone) !important; color: var(--ink) !important; }
   .text-bone { color: var(--ink) !important; }
   .text-brass { color: var(--ink) !important; }
+  .text-bone\/80 { color: var(--ink) !important; }
   .text-haze, .text-slate { color: var(--ink) !important; opacity: 0.75; }
   .border-haze\/25, .border-haze\/20, .border-haze\/30, .border-haze\/40 { border-color: var(--haze) !important; }
+  /* Score bars carry the value as text too, but keep them when background
+     graphics are off. */
+  .bg-brass, .bg-rust, .bg-haze\/15 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Constellation: brass on bone is 1.6:1 and the Values dots are bone on
+     bone, so the figure is redrawn in ink for paper. */
+  [data-role="constellation-shape"] { stroke: var(--ink); fill: var(--ink); fill-opacity: 0.06; }
+  [data-role="constellation-dot"] { fill: var(--ink); }
+  [data-role="constellation-label"] { fill: var(--ink); }
   details > *:not(summary) { display: block !important; }
   details > summary { list-style: none; }
   article { break-inside: avoid; }

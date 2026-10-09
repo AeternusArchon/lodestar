@@ -324,7 +324,7 @@ describe('how others see you', () => {
     const section = screen.getByRole('region', { name: en.observer.label })
     fireEvent.change(within(section).getByLabelText(en.observer.name), { target: { value: 'Jo Smith' } })
     fireEvent.click(within(section).getByRole('button', { name: en.observer.makeLink }))
-    const link = within(section).getByRole('textbox', { name: en.observer.copyLink })
+    const link = within(section).getByRole('textbox', { name: en.observer.linkOut })
     expect(link.readOnly).toBe(true)
     expect(link.value).toMatch(/#observer=Jo%20Smith$/)
   })

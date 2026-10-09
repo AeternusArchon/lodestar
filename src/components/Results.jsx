@@ -18,6 +18,7 @@ import { FACETS, DIMENSIONS } from '../data/facets.js'
 import { INDUSTRIES } from '../data/industries.js'
 import { QUESTIONS } from '../data/questions.js'
 import { useLocale } from '../i18n/index.jsx'
+import { BUTTON, BUTTON_HERO, BUTTON_DANGER, ENTRY, aside, ASIDE_TITLE, ASIDE_BODY } from './ui.js'
 
 const ALL_FACETS = new Set(FACETS.map(f => f.key))
 const INDUSTRY_BY_KEY = Object.fromEntries(INDUSTRIES.map(i => [i.key, i]))
@@ -109,7 +110,6 @@ function flagText(flag, stats, t) {
 const round = n => Math.round(n)
 const signed = n => (n > 0 ? `+${round(n)}` : `${round(n)}`)
 
-const BUTTON = 'font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60'
 
 /**
  * Copy-as-Markdown and print. The clipboard API is async and can be refused
@@ -187,9 +187,9 @@ function RetakeReminder() {
   }
 
   return (
-    <section aria-label={t('reminder.title')} className="w-full max-w-2xl flex flex-col gap-3 print:hidden">
-      <h2 className="font-display text-xl text-bone">{t('reminder.title')}</h2>
-      <p className="font-body text-base leading-relaxed text-haze">{t('reminder.body')}</p>
+    <section aria-label={t('reminder.title')} className={`${aside()} print:hidden`}>
+      <h2 className={ASIDE_TITLE}>{t('reminder.title')}</h2>
+      <p className={ASIDE_BODY}>{t('reminder.body')}</p>
       <div>
         <button type="button" onClick={download} className={BUTTON}>{t('reminder.button')}</button>
       </div>
@@ -235,15 +235,15 @@ export default function Results({
     const missing = QUESTIONS.length - answeredCount
     return (
       <main className="min-h-screen flex items-center justify-center bg-ink text-bone px-6 py-16">
-        <div className="w-full max-w-xl flex flex-col gap-6 text-center items-center">
-          <p className="font-display text-2xl">
+        <div className="w-full max-w-xl flex flex-col gap-6">
+          <h1 className="font-display text-3xl sm:text-4xl leading-tight">
             {t('results.incompleteTitle', { missing, total: QUESTIONS.length })}
-          </p>
+          </h1>
           <p className="font-body text-lg text-haze leading-relaxed">{t('results.incompleteBody')}</p>
           <button
             type="button"
             onClick={onRestart}
-            className="font-display text-lg px-8 py-3 bg-brass text-ink rounded-sm transition-colors hover:bg-brass/90"
+            className={`self-start ${BUTTON_HERO}`}
           >
             {t('results.restart')}
           </button>
@@ -289,7 +289,10 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart, o
 
   const { profile, summary, cards, quality, misses } = computed
 
-  const nameOf = key => industry(INDUSTRY_BY_KEY[key]).name
+  // A stored previous run can name an industry key this build no longer
+  // has; naming it would throw and blank the page, so an unknown key falls
+  // back to the raw key rather than crashing the comparison.
+  const nameOf = key => (INDUSTRY_BY_KEY[key] ? industry(INDUSTRY_BY_KEY[key]).name : key)
   const labelOf = key => translateFacet(FACET_BY_KEY[key]).label
   const list = items => joinList(items, dateLocale)
   const flagTexts = quality.flags.map(f => ({ code: f.code, message: flagText(f, quality.stats, t) }))
@@ -336,8 +339,21 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart, o
   // Comparing two fields needs two fields and a ranking worth comparing.
   const showCompare = !summary.whollyFlat && cards.length >= 2
 
+  const NAV_LINK = 'inline-flex items-center min-h-8 py-1 hover:text-brass'
+  const deltaClass = d => `inline-block w-[5ch] text-right ${Math.abs(d) >= 20 ? 'text-bone underline decoration-rust decoration-2 underline-offset-4' : ''}`
+
   return (
-    <main className="min-h-screen bg-ink text-bone flex flex-col items-center pt-6 sm:pt-8">
+    <main className="min-h-screen bg-ink text-bone flex flex-col items-center pt-2 sm:pt-4">
+      {/*
+        The language switch sits top-right, where it sits on the intro and the
+        how-to, rather than beside the h1, where at phone width it squeezed the
+        title onto two lines. It changes the whole page, numbers excepted, and
+        a reader who arrived in the wrong language should find it first.
+      */}
+      <div className="w-full flex justify-end px-4 sm:px-6 print:hidden">
+        <LanguageToggle />
+      </div>
+
       {/*
         Fix round 1, Finding 2: full-bleed means edge-to-edge — no page
         gutter, no width cap — the one place in the app this diagram is
@@ -347,256 +363,261 @@ function CompleteResults({ answers, timings, previous, onRecordRun, onRestart, o
         rather than an enormous square that would bury the honest-scope note
         off-screen below it; on a narrow viewport the width is the binding
         constraint instead, so it still renders as a true edge-to-edge
-        square there. Either way it is dramatically larger than the old
-        448px-capped, centered version this replaces. The top padding lives
-        on <main>, not on this box, so it doesn't throw off the aspect-ratio
-        math — padding inside an aspect-square element adds to its rendered
-        height rather than being absorbed by it.
+        square there. The viewBox is padded inside Constellation so the rim
+        and the dimension labels are not clipped at the screen edge.
       */}
       <div className="w-full aspect-square max-h-[520px]">
         <Constellation profile={profile} answeredFacets={ALL_FACETS} size={520} labelled />
       </div>
 
-      <div className="w-full flex flex-col items-center gap-14 px-4 sm:px-6 pt-8 pb-10">
+      {/*
+        Rhythm: the page is a stack of groups, not a stack of equal blocks.
+        Wide gaps separate the groups (header, preface, shortlist, tools,
+        follow-up, full profile); tighter gaps sit between the blocks inside
+        one, so a reader can see which asides belong together.
+      */}
+      <div className="w-full flex flex-col items-center gap-16 sm:gap-20 px-4 sm:px-6 pt-6 pb-12">
         {/*
-          The results screen had no h1 at all, and its outline ran H3 (industry
-          name) … H4 (card sections) … H2 (full profile) — non-monotonic, and
-          with nothing at the top for a screen-reader user to land on. This is
-          the page's one h1; IndustryCard's headings were demoted a level to
-          sit under it, which leaves ProfileReadout's existing h2/h3 correct
-          as they stand.
+          The page's one h1. IndustryCard's headings sit under it at h2/h3,
+          and ProfileReadout's h2/h3 follow the same outline.
         */}
-        <div className="w-full max-w-2xl flex flex-col gap-4 font-body text-lg leading-relaxed">
-          {/*
-            The language switch sits beside the h1, not in the nav: it changes
-            the whole page, numbers excepted, and a reader who arrived in the
-            wrong language should find it before reading a paragraph.
-          */}
-          <div className="flex items-start justify-between gap-4">
-            <h1 className="font-display text-3xl sm:text-4xl text-bone">{t('results.title')}</h1>
-            <LanguageToggle className="print:hidden shrink-0 pt-1" />
-          </div>
+        <div className="w-full max-w-2xl flex flex-col gap-5 font-body text-lg leading-relaxed">
+          <h1 className="font-display text-4xl sm:text-5xl leading-tight text-bone">{t('results.title')}</h1>
           <p>{t('results.scope')}</p>
 
           {/*
             Anchor nav. The page is long — seven cards, each with two
-            drawers, then twenty-four facet rows — and on a phone the full
-            profile is a dozen screens down. Plain in-page links; the targets
-            carry scroll-mt so a heading isn't hidden under the top edge.
+            drawers, then twenty-four facet rows. Sections on one row; the
+            four profile dimensions on a second, indented row under it, since
+            they are anchors inside "Full profile", not sections of their own.
           */}
-          <nav aria-label={t('results.navLabel')} className="print:hidden font-mono text-xs uppercase tracking-[0.2em] text-slate flex flex-wrap gap-x-5 gap-y-2 pt-2">
-            {!summary.whollyFlat && <a href="#shortlist" className="hover:text-brass">{t('results.nav.shortlist')}</a>}
-            {misses.length > 0 && <a href="#near-misses" className="hover:text-brass">{t('results.nav.nearMisses')}</a>}
-            {showCompare && <a href="#compare" className="hover:text-brass">{t('results.nav.compare')}</a>}
-            {comparison && <a href="#comparison" className="hover:text-brass">{t('results.nav.comparison')}</a>}
-            <a href="#observer" className="hover:text-brass">{t('results.nav.observer')}</a>
-            <a href="#profile" className="hover:text-brass">{t('results.nav.profile')}</a>
-            {DIMENSIONS.map(d => (
-              <a key={d} href={`#profile-${d}`} className="hover:text-brass">{t(`dimension.${d}`)}</a>
-            ))}
+          <nav aria-label={t('results.navLabel')} className="print:hidden font-mono text-xs uppercase tracking-[0.2em] text-slate flex flex-col gap-1 pt-1">
+            <div className="flex flex-wrap gap-x-5">
+              {!summary.whollyFlat && <a href="#shortlist" className={NAV_LINK}>{t('results.nav.shortlist')}</a>}
+              {misses.length > 0 && <a href="#near-misses" className={NAV_LINK}>{t('results.nav.nearMisses')}</a>}
+              {showCompare && <a href="#compare" className={NAV_LINK}>{t('results.nav.compare')}</a>}
+              {comparison && <a href="#comparison" className={NAV_LINK}>{t('results.nav.comparison')}</a>}
+              <a href="#observer" className={NAV_LINK}>{t('results.nav.observer')}</a>
+              <a href="#profile" className={NAV_LINK}>{t('results.nav.profile')}</a>
+            </div>
+            <div className="flex flex-wrap gap-x-5 border-l-2 border-haze/30 pl-3 text-haze">
+              {DIMENSIONS.map(d => (
+                <a key={d} href={`#profile-${d}`} className={NAV_LINK}>{t(`dimension.${d}`)}</a>
+              ))}
+            </div>
           </nav>
 
           <ExportControls markdown={markdown} />
-
-          <p className="font-mono text-sm text-haze leading-relaxed">{t('results.numbersNote')}</p>
         </div>
 
         {/*
-          Response-quality banner. Not a rejection: the ranking below is still
-          computed and shown. But a shortlist built from seventy-two 3s, or
-          from a run finished in ninety seconds, should not be read as the
-          other kind, and the only honest place to say that is above it.
+          Preface: what to know before reading the list. The numbers note,
+          then the response-quality banner (not a rejection: the ranking
+          below is still computed and shown, but a shortlist built from
+          seventy-two 3s should not be read as the other kind), then the
+          too-even dimensions.
         */}
-        {flagTexts.length > 0 && (
-          <section
-            aria-label={t('results.draftLabel')}
-            className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-rust/70 pl-4"
-          >
-            <h2 className="font-display text-xl text-bone">{t('results.draftTitle')}</h2>
-            <p className="font-body text-base leading-relaxed text-haze">{t('results.draftBody')}</p>
-            <ul className="flex flex-col gap-1.5 pl-4 list-disc marker:text-rust">
-              {flagTexts.map(f => (
-                <li key={f.code} className="font-body text-base leading-relaxed text-bone">{f.message}</li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <div className="w-full max-w-2xl flex flex-col gap-8">
+          <aside className={aside()}>
+            <p className={ASIDE_BODY}>{t('results.numbersNote')}</p>
+          </aside>
 
-        {!summary.whollyFlat && summary.flat.length > 0 && (
-          <div className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-            <p>{t('results.flatDims', { dims: list(summary.flat.map(d => t(`dimension.${d}`))) })}</p>
-          </div>
-        )}
-
-        {summary.whollyFlat ? (
-          <div className="w-full max-w-2xl font-body text-lg leading-relaxed text-center flex flex-col gap-3">
-            <p className="font-display text-2xl">{t('results.whollyFlatTitle')}</p>
-            <p className="text-haze">{t('results.whollyFlatBody')}</p>
-          </div>
-        ) : (
-          <div id="shortlist" className="w-full max-w-2xl flex flex-col gap-8 scroll-mt-6">
-            {cards.map(card => (
-              <IndustryCard
-                key={card.key}
-                match={card.match}
-                reasons={card.reasons}
-                rank={card.rank}
-                tied={card.tied}
-                profile={profile}
-              />
-            ))}
-
-            {/*
-              Named, not dropped. profile.js caps full cards at seven; anything
-              past that is the tail of a tie group whose other members are
-              carded above. Truncating a tie group silently would contradict
-              §3.6's near-tie honesty rule, so the remainder is said out loud
-              here instead of being given cards nobody asked for.
-            */}
-            {summary.alsoTied.length > 0 && (
-              <p className="font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-                {t('results.alsoTied', { names: list(summary.alsoTied.map(entry => nameOf(entry.key))) })}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/*
-          What would change this. The industries just under the shortlist,
-          each with the single facet that, moved SHIFT points, would help it
-          most — and whether that would have been enough. The shift is a fixed
-          size on purpose (see engine/nearmiss.js): it is a question to ask
-          yourself, not a target to hit.
-        */}
-        {misses.length > 0 && (
-          <section id="near-misses" aria-label={t('results.nearLabel')} className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
-            <h2 className="font-display text-2xl text-bone">{t('results.nearTitle')}</h2>
-            <p className="font-body text-base leading-relaxed text-haze">
-              {t('results.nearIntro', { n: misses.length, shift: SHIFT })}
-            </p>
-            <ul className="flex flex-col gap-4">
-              {misses.map(m => {
-                const helped = t('results.nearHelped', {
-                  direction: m.shift.direction > 0 ? t('results.higher') : t('results.lower'),
-                  from: round(m.shift.from),
-                  to: round(m.shift.to),
-                  newFit: round(m.shift.newFit),
-                  outcome: m.reaches ? t('results.nearReaches') : t('results.nearNot'),
-                })
-                return (
-                  <li key={m.key} className="flex flex-col gap-1 border-l-2 border-haze/30 pl-4">
-                    <p className="font-display text-lg text-bone">
-                      {nameOf(m.key)}{' '}
-                      <span className="font-mono text-sm text-haze">{t('results.nearShort', { fit: round(m.fit), gap: round(m.gap) })}</span>
-                    </p>
-                    <p className="font-body text-base leading-relaxed text-haze">
-                      {withSlots(helped, { label: <span className="text-bone">{labelOf(m.shift.facet)}</span> })}
-                    </p>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )}
-
-        {/*
-          Compare two. Placed after the near-misses so it reads as a tool for
-          the list above, once the list is settled, rather than part of it.
-        */}
-        {showCompare && <CompareFields fields={cards.map(c => c.match)} profile={profile} />}
-
-        {/*
-          Versus the previous run. The single most honest thing a self-report
-          can do is show whether it says the same thing twice. Facets that
-          moved under ten points are called stable and are the ones to trust;
-          the biggest movers are named so the reader knows which numbers to
-          discount, however confidently either run printed them.
-        */}
-        {comparison && (
-          <section id="comparison" aria-label={t('results.vsLabel')} className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
-            <h2 className="font-display text-2xl text-bone">{t('results.vsTitle', { date: previous.date })}</h2>
-            <p className="font-body text-base leading-relaxed text-haze">
-              {t('results.vsStable', { n: comparison.facets.stable.length })}{' '}
-              {comparison.facets.moved.length === 0
-                ? t('results.vsNone')
-                : t('results.vsMoved', { n: comparison.facets.moved.length })}
-            </p>
-            {comparison.facets.moved.length > 0 && (
-              <ul className="flex flex-col gap-1.5">
-                {comparison.facets.moved.slice(0, 6).map(d => (
-                  <li key={d.key} className="flex items-baseline justify-between gap-4 font-body text-base text-bone">
-                    <span>{labelOf(d.key)}</span>
-                    <span className="font-mono text-sm text-haze">{round(d.from)} → {round(d.to)} <span className={Math.abs(d.delta) >= 20 ? 'text-rust' : ''}>({signed(d.delta)})</span></span>
-                  </li>
+          {flagTexts.length > 0 && (
+            <section aria-label={t('results.draftLabel')} className={aside('warn')}>
+              <h2 className={ASIDE_TITLE}>{t('results.draftTitle')}</h2>
+              <p className={ASIDE_BODY}>{t('results.draftBody')}</p>
+              <ul className="flex flex-col gap-1.5 pl-4 list-disc marker:text-rust">
+                {flagTexts.map(f => (
+                  <li key={f.code} className="font-body text-base leading-relaxed text-bone">{f.message}</li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {!summary.whollyFlat && summary.flat.length > 0 && (
+            <aside className={aside()}>
+              <p className={ASIDE_BODY}>{t('results.flatDims', { dims: list(summary.flat.map(d => t(`dimension.${d}`))) })}</p>
+            </aside>
+          )}
+        </div>
+
+        {summary.whollyFlat ? (
+          <section aria-label={t('results.whollyFlatTitle')} className="w-full max-w-2xl flex flex-col gap-3">
+            <h2 className="font-display text-2xl sm:text-3xl text-bone">{t('results.whollyFlatTitle')}</h2>
+            <p className="font-body text-lg leading-relaxed text-haze">{t('results.whollyFlatBody')}</p>
+          </section>
+        ) : (
+          <div className="w-full max-w-2xl flex flex-col gap-8">
+            <div id="shortlist" className="w-full flex flex-col gap-8 scroll-mt-6">
+              {cards.map(card => (
+                <IndustryCard
+                  key={card.key}
+                  match={card.match}
+                  reasons={card.reasons}
+                  rank={card.rank}
+                  tied={card.tied}
+                  profile={profile}
+                />
+              ))}
+
+              {/*
+                Named, not dropped. profile.js caps full cards at seven;
+                anything past that is the tail of a tie group whose other
+                members are carded above. Truncating a tie group silently
+                would contradict §3.6's near-tie honesty rule.
+              */}
+              {summary.alsoTied.length > 0 && (
+                <aside className={aside()}>
+                  <p className={ASIDE_BODY}>
+                    {t('results.alsoTied', { names: list(summary.alsoTied.map(entry => nameOf(entry.key))) })}
+                  </p>
+                </aside>
+              )}
+            </div>
+
+            {/*
+              Spec §3.7's cross-cutting note. Directly after the cards and
+              outside them: it is an observation about a MODE of working
+              available inside any of the shortlisted industries, not a
+              twenty-third recommendation competing with them — and "the whole
+              list above" should be the list just above it. Suppressed on a
+              wholly flat profile, where there is no list to refer to.
+            */}
+            {fitsSelfEmployment(profile) && (
+              <section aria-label={t('results.selfLabel')} className={aside('note')}>
+                <h2 className={ASIDE_TITLE}>{t('results.selfTitle')}</h2>
+                <p className="font-body text-base leading-relaxed text-bone">
+                  {t('results.selfBody1', {
+                    autonomy: round(profile.autonomy),
+                    risk: round(profile.riskTolerance),
+                    enterprising: round(profile.enterprising),
+                  })}
+                </p>
+                <p className={ASIDE_BODY}>{t('results.selfBody2')}</p>
+              </section>
             )}
-            <p className="font-body text-base leading-relaxed text-haze">
-              {[
-                comparison.shortlist.kept.length > 0 && t('results.vsKept', { names: list(comparison.shortlist.kept.map(nameOf)) }),
-                comparison.shortlist.added.length > 0 && t('results.vsAdded', { names: list(comparison.shortlist.added.map(nameOf)) }),
-                comparison.shortlist.dropped.length > 0 && t('results.vsDropped', { names: list(comparison.shortlist.dropped.map(nameOf)) }),
-              ].filter(Boolean).join(' ')}
-            </p>
-          </section>
+          </div>
         )}
-
-        {!comparison && (
-          <p className="w-full max-w-2xl font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
-            {t('results.firstRun')}
-          </p>
-        )}
-
-        <RetakeReminder />
 
         {/*
-          How others see you. After the run-to-run comparison because it is
-          the same question asked of a different witness: does this profile
-          hold up when someone else answers?
+          Tools for the list: what would change it, then a side-by-side of
+          any two of it. The near-misses use a fixed shift on purpose (see
+          engine/nearmiss.js): a question to ask yourself, not a target.
         */}
-        <ObserverView
-          profile={profile}
-          observers={observers}
-          onAddObserver={onAddObserver}
-          onRemoveObserver={onRemoveObserver}
-        />
+        {(misses.length > 0 || showCompare) && (
+          <div className="w-full max-w-2xl flex flex-col gap-16">
+            {misses.length > 0 && (
+              <section id="near-misses" aria-label={t('results.nearLabel')} className={`${aside()} gap-4`}>
+                <h2 className={ASIDE_TITLE}>{t('results.nearTitle')}</h2>
+                <p className={ASIDE_BODY}>
+                  {t('results.nearIntro', { n: misses.length, shift: SHIFT })}
+                </p>
+                <ul className="flex flex-col gap-4">
+                  {misses.map(m => {
+                    const helped = t('results.nearHelped', {
+                      direction: m.shift.direction > 0 ? t('results.higher') : t('results.lower'),
+                      from: round(m.shift.from),
+                      to: round(m.shift.to),
+                      newFit: round(m.shift.newFit),
+                      outcome: m.reaches ? t('results.nearReaches') : t('results.nearNot'),
+                    })
+                    const short = round(m.gap) <= 1
+                      ? t('results.nearShortOne', { fit: round(m.fit) })
+                      : t('results.nearShort', { fit: round(m.fit), gap: round(m.gap) })
+                    return (
+                      <li key={m.key} className={ENTRY}>
+                        <h3 className="font-display text-lg text-bone">{nameOf(m.key)}</h3>
+                        <p className="font-mono text-sm text-haze">{short}</p>
+                        <p className={ASIDE_BODY}>
+                          {withSlots(helped, { label: <span className="text-bone">{labelOf(m.shift.facet)}</span> })}
+                        </p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
+
+            {showCompare && <CompareFields fields={cards.map(c => c.match)} profile={profile} />}
+          </div>
+        )}
 
         {/*
-          Spec §3.7's cross-cutting note. Deliberately placed after the cards
-          and outside them: it is an observation about a MODE of working
-          available inside any of the shortlisted industries, not a
-          twenty-third recommendation competing with them. Suppressed on a
-          wholly flat profile, where no shortlist was produced and "in any of
-          these" would have nothing to refer to.
+          Follow-up: does this hold up? Versus the previous run (or the note
+          that there is none yet), the reminder to make a second run happen,
+          and the same question asked of a different witness.
         */}
-        {!summary.whollyFlat && fitsSelfEmployment(profile) && (
-          <section
-            aria-label={t('results.selfLabel')}
-            className="w-full max-w-2xl flex flex-col gap-3 border-l-2 border-brass/50 pl-4"
-          >
-            <h2 className="font-display text-xl text-bone">{t('results.selfTitle')}</h2>
-            <p className="font-body text-base leading-relaxed text-bone">
-              {t('results.selfBody1', {
-                autonomy: round(profile.autonomy),
-                risk: round(profile.riskTolerance),
-                enterprising: round(profile.enterprising),
-              })}
-            </p>
-            <p className="font-body text-base leading-relaxed text-haze">{t('results.selfBody2')}</p>
-          </section>
-        )}
+        <div className="w-full max-w-2xl flex flex-col gap-10">
+          {comparison ? (
+            <section id="comparison" aria-label={t('results.vsLabel')} className={`${aside()} gap-4`}>
+              <h2 className={ASIDE_TITLE}>
+                {withSlots(t('results.vsTitle'), { date: <span className="whitespace-nowrap">{previous.date}</span> })}
+              </h2>
+              <p className={ASIDE_BODY}>
+                {t('results.vsStable', { n: comparison.facets.stable.length })}{' '}
+                {comparison.facets.moved.length === 0
+                  ? t('results.vsNone')
+                  : t('results.vsMoved', { n: comparison.facets.moved.length })}
+              </p>
+              {comparison.facets.moved.length > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {comparison.facets.moved.slice(0, 6).map(d => (
+                    <li key={d.key} className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 font-body text-base text-bone">
+                      <span>{labelOf(d.key)}</span>
+                      <span className="font-mono text-sm text-haze whitespace-nowrap">
+                        <span className="inline-block w-[3ch] text-right">{round(d.from)}</span>
+                        {' → '}
+                        <span className="inline-block w-[3ch] text-right">{round(d.to)}</span>{' '}
+                        <span className={deltaClass(d.delta)}>({signed(d.delta)})</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className={ASIDE_BODY}>
+                {[
+                  comparison.shortlist.kept.length > 0 && t('results.vsKept', { names: list(comparison.shortlist.kept.map(nameOf)) }),
+                  comparison.shortlist.added.length > 0 && t('results.vsAdded', { names: list(comparison.shortlist.added.map(nameOf)) }),
+                  comparison.shortlist.dropped.length > 0 && t('results.vsDropped', { names: list(comparison.shortlist.dropped.map(nameOf)) }),
+                ].filter(Boolean).join(' ')}
+              </p>
+            </section>
+          ) : (
+            <aside className={aside()}>
+              <p className={ASIDE_BODY}>{t('results.firstRun')}</p>
+            </aside>
+          )}
+
+          <RetakeReminder />
+
+          <ObserverView
+            profile={profile}
+            observers={observers}
+            onAddObserver={onAddObserver}
+            onRemoveObserver={onRemoveObserver}
+          />
+        </div>
 
         <ProfileReadout profile={profile} answers={answers} />
 
-        <footer className="w-full max-w-2xl font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
-          <p lang="en">{ONET_ATTRIBUTION}</p>
-        </footer>
+        <div className="w-full max-w-2xl flex flex-col gap-8">
+          <footer className="font-mono text-xs text-haze leading-relaxed border-t border-haze/20 pt-6">
+            <p lang="en">{ONET_ATTRIBUTION}</p>
+          </footer>
 
-        <div className="flex flex-wrap gap-3 print:hidden">
-          <ExportControls markdown={markdown} />
-          <button type="button" onClick={onRestart} className={BUTTON}>
-            {t('results.restart')}
-          </button>
+          {/*
+            Start over wipes this run, so it sits on its own row with a
+            destructive outline rather than in a row of look-alike buttons
+            next to Copy and Print.
+          */}
+          <div className="flex flex-col gap-6 print:hidden">
+            <ExportControls markdown={markdown} />
+            <div className="border-t border-haze/20 pt-6">
+              <button type="button" onClick={onRestart} className={BUTTON_DANGER}>
+                {t('results.restart')}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </main>

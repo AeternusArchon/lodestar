@@ -91,8 +91,8 @@ function ProvenanceDrawer({ match }) {
   const twoRater = authored.filter(f => match.provenance[f.key].raters === 2)
 
   return (
-    <details className="group border-t border-haze/20 pt-4">
-      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2">
+    <details className="group border-t border-haze/20 pt-2">
+      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2 min-h-11 rounded-sm">
         <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
         {t('card.provenanceSummary')}
       </summary>
@@ -115,7 +115,7 @@ function ProvenanceDrawer({ match }) {
                     <span className="font-mono text-xs"> · {t('card.provenanceTwo', { a: Math.round(p.rater1), b: Math.round(p.rater2), gap: Math.round(p.gap) })}</span>
                   )}
                   {' — '}{p.rationale}
-                  {p.note && <> <span className="text-bone/80">{t('card.provenanceForField', { note: p.note })}</span></>}
+                  {p.note && <> <span className="text-bone">{t('card.provenanceForField', { note: p.note })}</span></>}
                 </li>
               )
             })}
@@ -160,8 +160,8 @@ function OccupationsDrawer({ match, profile }) {
   if (occupations.length === 0) return null
 
   return (
-    <details className="group border-t border-haze/20 pt-4">
-      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2">
+    <details className="group border-t border-haze/20 pt-2">
+      <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-slate hover:text-brass list-none flex items-center gap-2 min-h-11 rounded-sm">
         <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
         {t('card.occupationsSummary', { n: occupations.length })}
       </summary>
@@ -196,7 +196,7 @@ export default function IndustryCard({ match: raw, reasons, rank, tied, profile 
   const { t, ordinal, industry } = useLocale()
   const match = industry(raw)
   return (
-    <article className="w-full flex flex-col gap-6 rounded-sm border border-haze/25 p-6 sm:p-8">
+    <article className="w-full flex flex-col gap-6 rounded-sm border border-haze/25 p-5 sm:p-8">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-xs uppercase tracking-[0.25em] text-slate">
           {tied ? t('card.tied', { rank: ordinal(rank) }) : ordinal(rank)}

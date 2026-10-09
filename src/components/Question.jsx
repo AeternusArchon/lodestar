@@ -30,18 +30,28 @@ export default function Question({ item, value, onAnswer, index, total }) {
       </legend>
       <p className="sr-only">{t('question.of', { n: index + 1, total })}</p>
 
-      <div className="flex flex-col gap-3 -mt-4">
+      {/*
+        The legend is not a flex item of the fieldset (browsers render it
+        outside the content box), so the fieldset's gap does not apply above
+        this block: it carries its own top margin. A negative margin here once
+        pulled the toggle up over the last line of the statement.
+      */}
+      <div className="mt-3 flex flex-col gap-2">
         <button
           type="button"
           aria-expanded={open}
           aria-controls={noteId}
           onClick={() => setOpen(o => !o)}
-          className="self-start font-mono text-xs text-haze underline underline-offset-4 transition-colors hover:text-bone"
+          className="group self-start inline-flex items-center gap-2 min-h-11 -ml-1 px-1 font-mono text-xs text-slate transition-colors hover:text-brass"
         >
-          {open ? t('question.hide') : t('question.explain')}
+          {/* Chevron drawn in CSS so the button's text stays exactly its label. */}
+          <span aria-hidden="true" className={`inline-block before:content-['▸'] transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="underline decoration-dotted underline-offset-4">
+            {open ? t('question.hide') : t('question.explain')}
+          </span>
         </button>
         {open && (
-          <p id={noteId} className="font-body text-base text-haze">
+          <p id={noteId} className="font-body text-base leading-relaxed text-haze border-l-2 border-haze/30 pl-4">
             {explanation(item.id)}
           </p>
         )}
@@ -54,7 +64,7 @@ export default function Question({ item, value, onAnswer, index, total }) {
             <label
               key={optValue}
               htmlFor={id}
-              className="flex items-center gap-4 rounded-sm border border-haze/30 px-4 py-3 cursor-pointer transition-colors hover:border-brass/60 has-[:checked]:border-brass has-[:checked]:bg-brass/10"
+              className="flex items-center gap-4 min-h-11 rounded-sm border border-haze/30 px-4 py-3 cursor-pointer transition-colors hover:border-brass/60 has-[:checked]:border-brass has-[:checked]:bg-brass/10"
             >
               <input
                 type="radio"

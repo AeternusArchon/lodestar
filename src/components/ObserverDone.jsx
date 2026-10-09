@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { encodeAnswers } from '../engine/observer.js'
 import { useLocale } from '../i18n/index.jsx'
+import { BUTTON_PRIMARY, FIELD_LABEL, INPUT, LINK_BOX } from './ui.js'
 
 /**
  * What an observer sees instead of Results: no profile of their own (they
@@ -54,40 +55,46 @@ export default function ObserverDone({ answers, name }) {
         <h1 className="font-display text-4xl sm:text-5xl leading-tight">{t('observer.doneTitle')}</h1>
         <p className="font-body text-lg leading-relaxed">{t('observer.doneBody', { name })}</p>
 
-        <label className="flex flex-col gap-1 font-mono text-xs uppercase tracking-[0.2em] text-slate">
-          {t('observer.yourName')}
+        <label htmlFor="observer-rater" className="flex flex-col gap-2">
+          <span className={FIELD_LABEL}>{t('observer.yourName')}</span>
           <input
+            id="observer-rater"
             type="text"
             value={raterName}
             onChange={e => { setRaterName(e.target.value); setStatus(null) }}
-            className="bg-ink border border-haze/40 rounded-sm px-3 py-2 font-body text-base normal-case tracking-normal text-bone"
+            className={INPUT}
           />
         </label>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
+        {/*
+          A wrapping readonly textarea rather than a one-line input: the link
+          is the whole point of this screen, and an input showed about forty
+          characters of it with the code itself scrolled out of sight.
+        */}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="observer-return-link" className={FIELD_LABEL}>{t('observer.linkBack')}</label>
+          <textarea
+            id="observer-return-link"
             readOnly
+            rows={3}
             value={link}
-            aria-label={t('observer.copyLink')}
             onFocus={e => e.target.select()}
-            className="flex-1 min-w-0 bg-ink border border-haze/40 rounded-sm px-3 py-2 font-mono text-xs text-bone"
+            className={LINK_BOX}
           />
-          <button
-            type="button"
-            onClick={copy}
-            className="font-display text-base px-6 py-2 rounded-sm bg-brass text-ink transition-colors hover:bg-brass/90"
-          >
+          <button type="button" onClick={copy} className={`self-start ${BUTTON_PRIMARY}`}>
             {t('observer.copyLink')}
           </button>
         </div>
 
-        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] ${status === 'failed' ? 'text-rust' : 'text-slate'}`}>
+        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] ${status === 'failed' ? 'text-bone border-l-2 border-rust pl-3' : 'text-slate'}`}>
           {status === 'ok' && t('observer.linkCopied')}
           {status === 'failed' && t('observer.linkFailed')}
         </p>
 
-        <p className="font-mono text-xs text-haze break-all select-all">{code}</p>
+        <div className="flex flex-col gap-2 border-t border-haze/20 pt-4">
+          <p className="font-body text-sm leading-relaxed text-haze">{t('observer.codeLabel')}</p>
+          <p className="font-mono text-sm text-bone break-all select-all">{code}</p>
+        </div>
       </div>
     </main>
   )

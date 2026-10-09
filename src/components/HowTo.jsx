@@ -1,5 +1,6 @@
 import LanguageToggle from './LanguageToggle.jsx'
 import { useLocale } from '../i18n/index.jsx'
+import { BUTTON_HERO } from './ui.js'
 
 /**
  * One screen between the intro and the first statement. The instrument has
@@ -16,7 +17,7 @@ export default function HowTo({ onStart }) {
 
   return (
     <main className="relative min-h-screen flex items-center justify-center bg-ink text-bone px-6 py-16">
-      <LanguageToggle className="absolute top-4 right-4 sm:right-6" />
+      <LanguageToggle className="absolute top-2 right-4 sm:right-6" />
       <div className="w-full max-w-xl flex flex-col gap-8">
         <h1 className="font-display text-4xl sm:text-5xl leading-tight">{t('howto.title')}</h1>
 
@@ -30,7 +31,7 @@ export default function HowTo({ onStart }) {
         <button
           type="button"
           onClick={onStart}
-          className="self-start font-display text-lg px-8 py-3 bg-brass text-ink rounded-sm transition-colors hover:bg-brass/90"
+          className={`self-start ${BUTTON_HERO}`}
         >
           {t('howto.start')}
         </button>

@@ -48,7 +48,7 @@ export default {
   question: {
     of: 'Question {n} of {total}',
     explain: 'What does this mean?',
-    hide: 'Hide',
+    hide: 'Hide the explanation',
     options: {
       1: 'Strongly disagree',
       2: 'Disagree',
@@ -103,6 +103,7 @@ export default {
     nearLabel: 'Industries that just missed',
     nearIntro: 'The next {n} fields below the line, and for each the one facet that would have helped it most if your answers had put you {shift} points further along it. If one of these describes a change of self-view you recognise, the field belongs on the list.',
     nearShort: '{fit}% — {gap} points short',
+    nearShortOne: '{fit}% — a point or less short',
     nearHelped: 'Most helped by scoring {direction} on {label} ({from} → {to}): fit would be {newFit}%, {outcome}',
     nearReaches: 'enough to join the shortlist.',
     nearNot: 'still short of the shortlist on its own.',
@@ -181,7 +182,9 @@ export default {
     you: 'You',
     favours: 'Favours',
     even: 'even',
-    note: 'A facet favours the field whose number sits closer to yours once each dimension is centred on its own mean — the same comparison the ranking uses. Values and schedule freedom are editorial estimates on the field side.',
+    note: 'A facet favours the field whose number sits closer to yours once each dimension is centred on its own mean — the same comparison the ranking uses.',
+    dagger: 'Values and schedule freedom are editorial estimates on the field side.',
+    daggerShort: 'editorial estimate',
   },
 
   observer: {
@@ -193,6 +196,9 @@ export default {
     yourName: 'Your name, so they know who this came from',
     makeLink: 'Make a link',
     copyLink: 'Copy link',
+    linkOut: 'The link to send them',
+    linkBack: 'The link to send back',
+    codeLabel: 'Or send just this code. If a chat app mangles the link, the code pasted on its own works the same.',
     linkCopied: 'Link copied.',
     linkFailed: 'Could not copy — select the link and copy it by hand.',
     paste: 'Paste the link they sent back',

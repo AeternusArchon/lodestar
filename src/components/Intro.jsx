@@ -1,5 +1,6 @@
 import LanguageToggle from './LanguageToggle.jsx'
 import { useLocale } from '../i18n/index.jsx'
+import { BUTTON_HERO } from './ui.js'
 
 /**
  * The opening screen. Carries the honest-scope statement (spec §1) — that this
@@ -23,7 +24,7 @@ export default function Intro({ onStart, onRestart, resume = null, observerName 
 
   return (
     <main className="relative min-h-screen flex items-center justify-center bg-ink text-bone px-6 py-16">
-      <LanguageToggle className="absolute top-4 right-4 sm:right-6" />
+      <LanguageToggle className="absolute top-2 right-4 sm:right-6" />
       <div className="w-full max-w-xl flex flex-col gap-8">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-brass">
           {observer ? t('intro.observerKicker') : t('intro.kicker')}
@@ -57,14 +58,14 @@ export default function Intro({ onStart, onRestart, resume = null, observerName 
               <button
                 type="button"
                 onClick={onStart}
-                className="font-display text-lg px-8 py-3 bg-brass text-ink rounded-sm transition-colors hover:bg-brass/90"
+                className={BUTTON_HERO}
               >
                 {t('intro.continue')}
               </button>
               <button
                 type="button"
                 onClick={onRestart}
-                className="font-display text-lg px-6 py-3 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60"
+                className="inline-flex items-center justify-center min-h-11 font-display text-lg px-6 py-3 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60"
               >
                 {t('intro.fresh')}
               </button>
@@ -74,7 +75,7 @@ export default function Intro({ onStart, onRestart, resume = null, observerName 
           <button
             type="button"
             onClick={onStart}
-            className="self-start font-display text-lg px-8 py-3 bg-brass text-ink rounded-sm transition-colors hover:bg-brass/90"
+            className={`self-start ${BUTTON_HERO}`}
           >
             {t('intro.begin')}
           </button>

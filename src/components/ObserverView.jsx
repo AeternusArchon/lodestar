@@ -2,13 +2,12 @@ import { useState } from 'react'
 import { FACETS } from '../data/facets.js'
 import { decodeAnswers, compareWithObserver, CODE_LENGTH } from '../engine/observer.js'
 import { useLocale } from '../i18n/index.jsx'
+import { BUTTON, INPUT, LINK_BOX, FIELD_LABEL, ENTRY, aside, ASIDE_TITLE, ASIDE_BODY } from './ui.js'
 
 const FACET_BY_KEY = Object.fromEntries(FACETS.map(f => [f.key, f]))
 const round = n => Math.round(n)
 const signed = n => (round(n) > 0 ? `+${round(n)}` : `${round(n)}`)
 
-const BUTTON = 'font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60'
-const INPUT = 'w-full min-w-0 bg-ink border border-haze/40 rounded-sm px-3 py-2 font-body text-base text-bone focus:border-brass/60'
 
 /**
  * Reads what a respondent pastes back: either the full link an observer sent
@@ -75,34 +74,41 @@ function ObserverEntry({ observer, profile, onRemove }) {
   const name = observer.name || '?'
 
   return (
-    <li className="flex flex-col gap-2 border-l-2 border-slate/60 pl-4">
-      <div className="flex items-baseline justify-between gap-3">
+    <li className={`${ENTRY} gap-2`}>
+      <div className="flex items-center justify-between gap-3">
         <h3 className="font-display text-lg text-bone">
           {t('observer.from', { name })}{' '}
-          {observer.date && <span className="font-mono text-xs text-haze">{observer.date}</span>}
+          {observer.date && <span className="font-mono text-xs text-haze whitespace-nowrap">{observer.date}</span>}
         </h3>
         <button
           type="button"
           onClick={() => onRemove?.(observer.code)}
           aria-label={t('observer.remove', { name })}
-          className="font-mono text-base leading-none px-2 py-1 text-haze hover:text-rust print:hidden"
+          title={t('observer.remove', { name })}
+          className="inline-flex items-center justify-center h-11 w-11 shrink-0 rounded-sm font-mono text-lg leading-none text-haze transition-colors hover:text-bone hover:bg-rust/20 print:hidden"
         >
           <span aria-hidden="true">×</span>
         </button>
       </div>
-      <p className="font-body text-base leading-relaxed text-haze">
+      <p className={ASIDE_BODY}>
         {t('observer.agree', { n: agree.length, name })}
       </p>
       {differ.length > 0 && (
         <>
-          <p className="font-body text-base leading-relaxed text-haze">{t('observer.differ', { n: differ.length })}</p>
+          <p className={ASIDE_BODY}>{t('observer.differ', { n: differ.length })}</p>
+          {/*
+            A grid, not a wrapping flex row: a long facet name wraps inside its
+            own column and the numbers stay right-aligned in theirs, each in a
+            fixed-width cell so they line up from row to row.
+          */}
           <ul className="flex flex-col gap-1.5" aria-label={t('observer.from', { name })}>
             {differ.map(row => (
-              <li key={row.key} className="flex flex-wrap items-baseline justify-between gap-x-4 font-body text-base text-bone">
+              <li key={row.key} className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 font-body text-base text-bone">
                 <span>{translateFacet(FACET_BY_KEY[row.key]).label}</span>
-                <span className="font-mono text-sm text-haze">
-                  {`${t('observer.youSaw')} ${round(row.self)} · ${name} ${round(row.observer)}`}{' '}
-                  <span className={Math.abs(row.delta) >= 20 ? 'text-rust' : ''}>({signed(row.delta)})</span>
+                <span className="font-mono text-sm text-haze whitespace-nowrap text-right">
+                  {t('observer.youSaw')} <span className="inline-block w-[3ch] text-right">{round(row.self)}</span>
+                  {' · '}{name} <span className="inline-block w-[3ch] text-right">{round(row.observer)}</span>{' '}
+                  <span className={`inline-block w-[5ch] text-right ${Math.abs(row.delta) >= 20 ? 'text-bone underline decoration-rust decoration-2 underline-offset-4' : ''}`}>({signed(row.delta)})</span>
                 </span>
               </li>
             ))}
@@ -155,12 +161,12 @@ export default function ObserverView({ profile, observers = [], onAddObserver, o
   }
 
   return (
-    <section id="observer" aria-label={t('observer.label')} className="w-full max-w-2xl flex flex-col gap-6 scroll-mt-6">
-      <h2 className="font-display text-2xl text-bone">{t('observer.title')}</h2>
+    <section id="observer" aria-label={t('observer.label')} className={`${aside()} gap-6`}>
+      <h2 className={ASIDE_TITLE}>{t('observer.title')}</h2>
 
       <div className="flex flex-col gap-3 print:hidden">
-        <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-slate">{t('observer.askTitle')}</h3>
-        <p className="font-body text-base leading-relaxed text-haze">{t('observer.askIntro')}</p>
+        <h3 className={FIELD_LABEL}>{t('observer.askTitle')}</h3>
+        <p className={ASIDE_BODY}>{t('observer.askIntro')}</p>
         <form onSubmit={makeLink} className="flex flex-col sm:flex-row sm:items-end gap-3">
           <label htmlFor="observer-name" className="flex flex-col gap-1 flex-1 min-w-0">
             <span className="font-mono text-xs text-slate">{t('observer.name')}</span>
@@ -169,19 +175,20 @@ export default function ObserverView({ profile, observers = [], onAddObserver, o
           <button type="submit" className={BUTTON}>{t('observer.makeLink')}</button>
         </form>
         {link && (
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
+          <div className="flex flex-col gap-2">
+            <label htmlFor="observer-out-link" className="font-mono text-xs text-slate">{t('observer.linkOut')}</label>
+            <textarea
+              id="observer-out-link"
               readOnly
+              rows={2}
               value={link}
-              aria-label={t('observer.copyLink')}
               onFocus={e => e.target.select()}
-              className="flex-1 min-w-0 bg-ink border border-haze/40 rounded-sm px-3 py-2 font-mono text-xs text-bone"
+              className={LINK_BOX}
             />
-            <button type="button" onClick={copy} className={BUTTON}>{t('observer.copyLink')}</button>
+            <button type="button" onClick={copy} className={`self-start ${BUTTON}`}>{t('observer.copyLink')}</button>
           </div>
         )}
-        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] ${copyStatus === 'failed' ? 'text-rust' : 'text-slate'}`}>
+        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] ${copyStatus === 'failed' ? 'text-bone border-l-2 border-rust pl-3' : 'text-slate'}`}>
           {copyStatus === 'ok' && t('observer.linkCopied')}
           {copyStatus === 'failed' && t('observer.linkFailed')}
         </p>
@@ -195,15 +202,15 @@ export default function ObserverView({ profile, observers = [], onAddObserver, o
           </label>
           <button type="submit" className={BUTTON}>{t('observer.pasteButton')}</button>
         </form>
-        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] print:hidden ${pasteStatus === 'bad' ? 'text-rust' : 'text-slate'}`}>
+        <p role="status" aria-live="polite" className={`font-mono text-sm min-h-[1.25rem] print:hidden ${pasteStatus === 'bad' ? 'text-bone border-l-2 border-rust pl-3' : 'text-slate'}`}>
           {pasteStatus === 'ok' && t('observer.added')}
           {pasteStatus === 'bad' && t('observer.pasteBad')}
         </p>
 
         {observers.length === 0 ? (
-          <p className="font-body text-base text-haze">{t('observer.nobody')}</p>
+          <p className={ASIDE_BODY}>{t('observer.nobody')}</p>
         ) : (
-          <ul className="flex flex-col gap-6">
+          <ul className="flex flex-col gap-5">
             {observers.map(o => (
               <ObserverEntry key={o.code} observer={o} profile={profile} onRemove={onRemoveObserver} />
             ))}

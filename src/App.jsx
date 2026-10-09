@@ -435,7 +435,7 @@ export default function App() {
       <InstrumentRail answers={answers} timings={timings} index={index} total={QUESTIONS.length} />
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
         {session.notice && (
-          <p role="status" className="w-full max-w-2xl font-mono text-sm text-rust text-center">
+          <p role="status" className="w-full max-w-2xl border-l-2 border-rust pl-3 font-mono text-sm text-bone">
             {session.notice}
           </p>
         )}
@@ -459,7 +459,7 @@ export default function App() {
             type="button"
             onClick={() => goTo(index - 1)}
             disabled={isFirst}
-            className="font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="min-h-11 font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {t('nav.back')}
           </button>
@@ -467,7 +467,7 @@ export default function App() {
             type="button"
             onClick={advance}
             disabled={!hasAnswer}
-            className="font-display text-base px-5 py-2 rounded-sm bg-brass text-ink transition-colors hover:bg-brass/90 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="min-h-11 font-display text-base px-5 py-2 rounded-sm border border-brass bg-brass text-ink transition-colors hover:bg-brass/90 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {isLast ? t('nav.finish') : t('nav.next')}
           </button>

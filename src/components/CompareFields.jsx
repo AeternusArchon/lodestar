@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { DIMENSIONS, facetsByDimension } from '../data/facets.js'
 import { centerByDimension } from '../engine/match.js'
 import { useLocale } from '../i18n/index.jsx'
+import { FIELD_LABEL, SECTION_TITLE } from './ui.js'
 
 /**
  * Within this many centred points, the two fields are called even on a facet.
@@ -60,12 +61,12 @@ export default function CompareFields({ fields, profile }) {
 
   const select = (id, label, value, onChange) => (
     <label htmlFor={id} className="flex flex-col gap-1 flex-1 min-w-0">
-      <span className="font-mono text-xs uppercase tracking-[0.2em] text-slate">{label}</span>
+      <span className={FIELD_LABEL}>{label}</span>
       <select
         id={id}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full bg-ink border border-haze/40 rounded-sm px-3 py-2 font-body text-base text-bone focus:border-brass/60"
+        className="w-full min-h-11 bg-ink border border-haze/40 rounded-sm px-3 py-2 font-body text-base text-bone focus:border-brass/60"
       >
         {fields.map(f => <option key={f.key} value={f.key}>{nameOf(f)}</option>)}
       </select>
@@ -74,7 +75,7 @@ export default function CompareFields({ fields, profile }) {
 
   return (
     <section id="compare" aria-label={t('compare.label')} className="w-full max-w-2xl flex flex-col gap-4 scroll-mt-6">
-      <h2 className="font-display text-2xl text-bone">{t('compare.title')}</h2>
+      <h2 className={SECTION_TITLE}>{t('compare.title')}</h2>
       <p className="font-body text-base leading-relaxed text-haze">{t('compare.intro')}</p>
 
       <div className="flex flex-col sm:flex-row gap-3 print:hidden">
@@ -82,15 +83,26 @@ export default function CompareFields({ fields, profile }) {
         {select('compare-b', `B · ${t('compare.second')}`, b.key, setBKey)}
       </div>
 
+      {/*
+        The legend for A and B. The column headers stay one letter wide (the
+        names ride along for screen readers only) so they never wrap at desktop
+        width or crowd the table at phone width; this line names the two
+        fields instead, and it prints, where the selects above do not.
+      */}
+      <p className="font-body text-base text-bone flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-1">
+        <span><span className="font-mono text-brass mr-2">A</span>{nameOf(a)}</span>
+        <span><span className="font-mono text-brass mr-2">B</span>{nameOf(b)}</span>
+      </p>
+
       <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[22rem] border-collapse font-body text-sm text-bone">
+        <table className="w-full border-collapse font-body text-sm text-bone">
           <thead>
             <tr className="border-b border-haze/30 text-left align-bottom">
-              <th scope="col" className="py-2 pr-3 font-normal" />
-              <th scope="col" className="py-2 px-2 font-mono text-xs uppercase tracking-[0.15em] text-slate text-right">{t('compare.you')}</th>
-              <th scope="col" className="py-2 px-2 font-mono text-xs text-slate text-right"><span className="text-brass">A</span><span className="hidden sm:inline"> · {nameOf(a)}</span></th>
-              <th scope="col" className="py-2 px-2 font-mono text-xs text-slate text-right"><span className="text-brass">B</span><span className="hidden sm:inline"> · {nameOf(b)}</span></th>
-              <th scope="col" className="py-2 pl-2 font-mono text-xs uppercase tracking-[0.15em] text-slate text-center">{t('compare.favours')}</th>
+              <th scope="col" className="py-2 pr-3 font-normal"><span className="sr-only">{t('compare.title')}</span></th>
+              <th scope="col" className="py-2 px-2 font-mono text-xs text-slate text-right whitespace-nowrap">{t('compare.you')}</th>
+              <th scope="col" className="py-2 px-2 font-mono text-xs text-brass text-right whitespace-nowrap">A<span className="sr-only"> · {nameOf(a)}</span></th>
+              <th scope="col" className="py-2 px-2 font-mono text-xs text-brass text-right whitespace-nowrap">B<span className="sr-only"> · {nameOf(b)}</span></th>
+              <th scope="col" className="py-2 pl-2 font-mono text-xs text-slate text-center whitespace-nowrap">{t('compare.favours')}</th>
             </tr>
           </thead>
           {DIMENSIONS.map(dimension => (
@@ -106,7 +118,7 @@ export default function CompareFields({ fields, profile }) {
                   <tr key={f.key} data-facet={f.key} className="border-t border-haze/15">
                     <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                       {translateFacet(f).label}
-                      {authored(f.key) && <sup aria-hidden="true" className="ml-0.5 text-haze">†</sup>}
+                      {authored(f.key) && <sup className="ml-0.5 text-haze"><span aria-hidden="true">†</span><span className="sr-only"> ({t('compare.daggerShort')})</span></sup>}
                     </th>
                     <td className="py-1.5 px-2 text-right font-mono">{round(profile[f.key])}</td>
                     <td className="py-1.5 px-2 text-right font-mono text-haze">{round(a.vector[f.key])}</td>
@@ -122,9 +134,10 @@ export default function CompareFields({ fields, profile }) {
         </table>
       </div>
 
-      <p className="font-mono text-xs text-haze leading-relaxed">
-        <span aria-hidden="true">† </span>{t('compare.note')}
-      </p>
+      <div className="flex flex-col gap-1 font-body text-sm leading-relaxed text-haze">
+        <p>{t('compare.note')}</p>
+        <p><span aria-hidden="true" className="inline-block w-3">†</span>{t('compare.dagger')}</p>
+      </div>
     </section>
   )
 }
