@@ -3,16 +3,52 @@ import Intro from './components/Intro.jsx'
 import Question from './components/Question.jsx'
 import InstrumentRail from './components/InstrumentRail.jsx'
 import Results from './components/Results.jsx'
+import HowTo from './components/HowTo.jsx'
+import ObserverDone from './components/ObserverDone.jsx'
 import { QUESTIONS } from './data/questions.js'
 import { appendRun, previousRun, sanitiseRuns } from './engine/history.js'
+import { decodeAnswers, sanitiseObservers } from './engine/observer.js'
+import { useLocale } from './i18n/index.jsx'
 
 const STORAGE_KEY = 'lodestar.v1.session'
+// An observer (someone rating the respondent) keeps a session of their own so
+// opening a link never overwrites the respondent's half-finished test.
+const OBSERVER_STORAGE_KEY = 'lodestar.v1.observer-session'
 const RUNS_KEY = 'lodestar.v1.runs'
+const OBSERVERS_KEY = 'lodestar.v1.observers'
 /** Time on one item is capped so a tab left open overnight does not count as reading. */
 const MAX_ITEM_MS = 120_000
-const VALID_STAGES = ['intro', 'test', 'results']
+// 'howto' sits between 'intro' and 'test'. It is a valid stored stage but is
+// never restored as such: like 'test' it comes back as 'intro', so the resume
+// cue only has to reason about "has answers" versus "has none".
+const VALID_STAGES = ['intro', 'howto', 'test', 'results']
 
 const QUESTION_IDS = new Set(QUESTIONS.map(q => q.id))
+
+/**
+ * Reads the two URL-hash contracts. `#observer=<name>` (name URI-encoded, may
+ * be empty) means "run as an observer rating <name>"; `#from=<name>:<code>` is
+ * an observer's answers coming back to the respondent. The name is encoded,
+ * so any ':' in it is %3A and the LAST ':' is always the separator. Returns
+ * {} for anything else, and never throws on a malformed escape.
+ */
+export function parseHash(hash) {
+  const raw = String(hash ?? '').replace(/^#/, '')
+  const decode = s => { try { return decodeURIComponent(s) } catch { return null } }
+
+  if (raw.startsWith('observer=')) {
+    const name = decode(raw.slice('observer='.length))
+    return name === null ? {} : { observer: name }
+  }
+  if (raw.startsWith('from=')) {
+    const body = raw.slice('from='.length)
+    const cut = body.lastIndexOf(':')
+    if (cut < 0) return {}
+    const name = decode(body.slice(0, cut))
+    return name === null ? {} : { from: { name, code: body.slice(cut + 1) } }
+  }
+  return {}
+}
 
 /**
  * Every entry in a stored answers map must be a known question id pointing at
@@ -44,9 +80,9 @@ function hasValidAnswers(answers) {
 // rather than being handed to the app as-is — QUESTIONS[9999] is undefined,
 // and reading .text off it throws, which is exactly what the try/catch below
 // exists to prevent.
-function loadSession() {
+function loadSession(key = STORAGE_KEY) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed) return null
@@ -70,7 +106,7 @@ function loadSession() {
     // A session interrupted mid-test comes back to the intro with a resume
     // cue ("you stopped at 34 of 72") rather than dropping the reader onto a
     // statement with no context. The index is kept; Begin continues from it.
-    const stage = parsed.stage === 'test' ? 'intro' : parsed.stage
+    const stage = parsed.stage === 'test' || parsed.stage === 'howto' ? 'intro' : parsed.stage
     return { ...parsed, stage, timings, runId, notice: null }
   } catch {
     return null
@@ -103,8 +139,32 @@ function newRunId() {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function saveSession(session) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(session)) } catch { /* storage unavailable */ }
+function saveSession(session, key = STORAGE_KEY) {
+  try { localStorage.setItem(key, JSON.stringify(session)) } catch { /* storage unavailable */ }
+}
+
+function loadObservers() {
+  try {
+    return sanitiseObservers(JSON.parse(localStorage.getItem(OBSERVERS_KEY) ?? '[]'))
+  } catch {
+    return []
+  }
+}
+
+function saveObservers(observers) {
+  try { localStorage.setItem(OBSERVERS_KEY, JSON.stringify(observers)) } catch { /* storage unavailable */ }
+}
+
+/**
+ * Adds an observer's view, newest last, last five kept. A second view with the
+ * same code replaces the first rather than duplicating it, so pasting the same
+ * link twice (or reloading on a #from= link) is harmless. Returns the new list,
+ * or null when the code does not decode to 72 valid answers.
+ */
+function withObserver(current, name, code) {
+  if (typeof name !== 'string' || !decodeAnswers(code)) return null
+  const entry = { name, code, date: new Date().toISOString().slice(0, 10) }
+  return sanitiseObservers([...current.filter(o => o.code !== code), entry])
 }
 
 const FRESH_SESSION = { stage: 'intro', index: 0, answers: {}, timings: {}, runId: null }
@@ -115,17 +175,48 @@ const FRESH_SESSION = { stage: 'intro', index: 0, answers: {}, timings: {}, runI
  * try/catch (see loadSession above) rather than assumed — an unreadable or
  * malformed value falls back to a fresh session instead of throwing.
  *
- * `stage` is 'intro' | 'test' | 'results'. Task 12 fills in the real
+ * `stage` is 'intro' | 'howto' | 'test' | 'results'. Task 12 fills in the real
  * 'results' view; the arm exists here already so that wiring is additive.
+ *
+ * Observer mode (`#observer=<name>` at load) runs the same test under a
+ * separate storage key, skips the how-to (the observer intro covers it), keeps
+ * no run history, and ends on ObserverDone instead of Results. The mode is
+ * fixed at mount: it is a property of the link that opened this page.
  */
 export default function App() {
-  const [session, setSession] = useState(() => loadSession() ?? FRESH_SESSION)
+  const { locale, t } = useLocale()
+  const [observerRaw] = useState(() => parseHash(window.location.hash).observer ?? null)
+  const observerMode = observerRaw !== null
+  const sessionKey = observerMode ? OBSERVER_STORAGE_KEY : STORAGE_KEY
+  const [session, setSession] = useState(() => loadSession(sessionKey) ?? FRESH_SESSION)
   const [runs, setRuns] = useState(loadRuns)
+  const [observers, setObservers] = useState(loadObservers)
   const { stage, index, answers, timings = {} } = session
+  // What the observer copy calls the respondent when the link carried no name.
+  const observerName = observerMode
+    ? (observerRaw || (locale === 'es' ? 'esta persona' : 'this person'))
+    : null
 
   useEffect(() => {
-    saveSession(session)
+    document.documentElement.lang = locale
+  }, [locale])
+
+  useEffect(() => {
+    saveSession(session, sessionKey)
   }, [session])
+
+  // An observer's answers coming home: `#from=<name>:<code>` is consumed once
+  // on load, stored, and cleared from the address bar so a reload or a shared
+  // screenshot of the URL does not carry it around. A bad code is dropped but
+  // the hash is cleared all the same. Idempotent (same code replaces itself),
+  // so StrictMode's double effect cannot add it twice.
+  useEffect(() => {
+    if (observerMode) return
+    const { from } = parseHash(window.location.hash)
+    if (!from) return
+    addObserver(from.name, from.code)
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [])
 
   // When the current item was first shown. Reset whenever the item changes,
   // so the time recorded against an answer is time spent looking at that
@@ -187,9 +278,15 @@ export default function App() {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [stage, index])
+  }, [stage, index, locale])
 
+  // Begin from a clean intro goes through the how-to; Continue on a resumed
+  // session and every observer start go straight to the statements.
   function begin() {
+    setSession(s => ({ ...s, stage: observerMode ? 'test' : 'howto' }))
+  }
+
+  function startTest() {
     setSession(s => ({ ...s, stage: 'test' }))
   }
 
@@ -231,8 +328,8 @@ export default function App() {
 
     const missingCount = QUESTIONS.length - QUESTIONS.filter(q => answers[q.id] !== undefined).length
     const notice = missingCount === 1
-      ? "1 statement still needs an answer. Here it is."
-      : `${missingCount} statements still need an answer. Here's the first one.`
+      ? t('notice.one')
+      : t('notice.many', { n: missingCount })
     return { ...s, answers, index: missingIndex, notice }
   }
 
@@ -264,6 +361,21 @@ export default function App() {
     setSession({ ...FRESH_SESSION, answers: {}, timings: {} })
   }
 
+  /** Returns true when the code was a complete set of answers and was stored. */
+  function addObserver(name, code) {
+    const next = withObserver(loadObservers(), name, code)
+    if (!next) return false
+    saveObservers(next)
+    setObservers(next)
+    return true
+  }
+
+  function removeObserver(code) {
+    const next = loadObservers().filter(o => o.code !== code)
+    saveObservers(next)
+    setObservers(next)
+  }
+
   /**
    * Called by Results once it has a profile and a shortlist. Idempotent on
    * runId, so re-rendering or reloading the results screen never adds a
@@ -280,7 +392,22 @@ export default function App() {
   if (stage === 'intro') {
     const answered = QUESTIONS.filter(q => answers[q.id] !== undefined).length
     const resume = answered > 0 ? { index, answered, total: QUESTIONS.length } : null
-    return <Intro onStart={begin} onRestart={restart} resume={resume} />
+    return (
+      <Intro
+        onStart={resume ? startTest : begin}
+        onRestart={restart}
+        resume={resume}
+        observerName={observerName}
+      />
+    )
+  }
+
+  if (stage === 'howto') {
+    return <HowTo onStart={startTest} />
+  }
+
+  if (stage === 'results' && observerMode) {
+    return <ObserverDone answers={answers} name={observerName} />
   }
 
   if (stage === 'results') {
@@ -291,6 +418,9 @@ export default function App() {
         previous={previousRun(runs, session.runId)}
         onRecordRun={recordRun}
         onRestart={restart}
+        observers={observers}
+        onAddObserver={addObserver}
+        onRemoveObserver={removeObserver}
       />
     )
   }
@@ -309,7 +439,14 @@ export default function App() {
             {session.notice}
           </p>
         )}
+        {observerMode && (
+          <p className="w-full max-w-2xl border-l-2 border-slate pl-3 font-mono text-xs text-slate">
+            {t('question.observerBanner', { name: observerName })}
+          </p>
+        )}
+        {/* Keyed by item so the explanation note closes when the statement changes. */}
         <Question
+          key={item.id}
           item={item}
           value={answers[item.id]}
           onAnswer={recordAnswer}
@@ -324,7 +461,7 @@ export default function App() {
             disabled={isFirst}
             className="font-display text-base px-5 py-2 rounded-sm border border-haze/40 text-bone transition-colors hover:border-brass/60 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            Back
+            {t('nav.back')}
           </button>
           <button
             type="button"
@@ -332,7 +469,7 @@ export default function App() {
             disabled={!hasAnswer}
             className="font-display text-base px-5 py-2 rounded-sm bg-brass text-ink transition-colors hover:bg-brass/90 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isLast ? 'Finish' : 'Next'}
+            {isLast ? t('nav.finish') : t('nav.next')}
           </button>
         </div>
       </div>
