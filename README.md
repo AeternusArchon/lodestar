@@ -66,6 +66,30 @@ suite and, if it passes, publishes `dist/` to GitHub Pages
   the author answered for the seven authored ones, and how many raters.
 - **Export.** Copy the results as Markdown, or print to paper or PDF with an
   ink-on-bone print stylesheet.
+- **Compare two fields.** Pick any two shortlisted industries and see, facet
+  by facet, which one each facet favours for you.
+- **How others see you.** Make a link, send it to someone who knows you; they
+  answer the same 72 statements as they believe you would, and send a link
+  back. The results page shows where their view and yours part ways. No
+  server: the answers travel in the URL.
+- **Retake reminder.** One button adds a calendar event three weeks out.
+
+## Answering well
+
+A "How to answer" screen runs before the first statement, and every statement
+has a "What does this mean?" note with a plain rewording and an everyday
+example. The notes never name the trait a statement measures — the items are
+written so nobody answers the label instead of the sentence, and a note that
+said "this is about risk" would undo that.
+
+## Español
+
+The whole instrument is available in Spanish: the 72 statements, their notes,
+the 24 facets, the 22 industries, and every screen. Switch with the toggle on
+the intro or results page; the choice is remembered. The O*NET licence notice
+stays in English, as the licence requires. Translations live in
+`src/i18n/es.js`; `tests/i18n.test.js` asserts the Spanish file covers every
+English key and every data record.
 
 ## Regenerating the industry vectors
 
