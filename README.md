@@ -1,5 +1,7 @@
 # Lodestar
 
+**Live:** https://aeternusarchon.github.io/lodestar/
+
 Lodestar is a static, offline career-fit assessment. A person answers 72
 self-report items, those score into a 24-facet profile, and the profile is
 matched against 22 industry vectors by dimension-weighted cosine similarity
@@ -36,7 +38,9 @@ npm run build
 ```
 
 `dist/` is a static bundle — no server, no database, no API keys, and it can
-be hosted anywhere that serves static files.
+be hosted anywhere that serves static files. Every push to `main` runs the
+suite and, if it passes, publishes `dist/` to GitHub Pages
+(`.github/workflows/pages.yml`).
 
 ## What the results screen does beyond ranking
 
